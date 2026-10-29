@@ -1,0 +1,47 @@
+{
+  "version": "C-prototype-v1.1",
+  "files": {
+    "core.js": "d0d39025582b12e69ea86435d992a20ee8e82658699de5605220532ce466e815",
+    "ui.js": "9b6cfc03b569836dd92beaf06ca8120251dd4e954368e5622cc33c354c6c297d",
+    "browser-check.cjs": "29069c5c97d40ebd0d9575a0cda03f1696168c30cb80f975f828118c3e4a4742"
+  },
+  "date": "2026-10-22T02:11:04.625Z",
+  "browser": "131.0.2903.112",
+  "scope": "agent无窗口浏览器实际点击；未代替学生人工走查或真实后台验证",
+  "checks": [
+    {
+      "name": "UI-C-01 正常下单与核心闭环（SC-C-01）",
+      "status": "通过"
+    },
+    {
+      "name": "UI-C-02 对象归属与治理入口（SC-C-06/20）",
+      "status": "通过"
+    },
+    {
+      "name": "UI-C-03 取消声明校验及取消后登记不可达（SC-C-07/08）",
+      "status": "通过"
+    },
+    {
+      "name": "UI-C-04 争议受理与异常终止（SC-C-15）",
+      "status": "通过"
+    },
+    {
+      "name": "UI-C-05 响应丢失后原标识查询（SC-C-02）",
+      "status": "通过"
+    },
+    {
+      "name": "UI-C-06 受限旧单与通知失败（SC-C-11/17）",
+      "status": "通过"
+    },
+    {
+      "name": "UI-C-07 窄屏与导出记录",
+      "status": "通过"
+    },
+    {
+      "name": "UI-C-08 未登记交付的异常终止（SC-C-15补充）",
+      "status": "失败",
+      "error": "待卖方确认 / buyer"
+    }
+  ],
+  "errors": []
+}

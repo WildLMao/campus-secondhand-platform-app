@@ -1,0 +1,13 @@
+{
+  "version": "C-prototype-v1.1",
+  "date": "2026-10-22",
+  "input_commit": "db80da86655dc36eb12ca70a0402adf88a9b61b4",
+  "program_scenarios": 22,
+  "program_assertions": 73,
+  "browser_checks": 8,
+  "walkthrough_replay_scenarios": 22,
+  "local_links_resolved": 161,
+  "scope": "仅C附件及总索引/交付清单；documents、A/B、initialization及原始日志不变",
+  "manual_walkthrough": "待执行",
+  "D_review": "待执行"
+}

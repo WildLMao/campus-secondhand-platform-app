@@ -1,0 +1,7346 @@
+{
+  "version": "C-prototype-v1.1",
+  "runtime": "v24.19.0",
+  "date": "2026-10-22T02:38:22.894Z",
+  "scope": "顺序内存模拟；未验证真实后台并发、认证、性能、外部通知服务；未取得学生人工观察及D独立复核",
+  "files": {
+    "core.js": "c4ab508ad474de4ee4ef4eea8e9fbeb9ca6af28d95a8da2c9da1823609a68cee",
+    "verify.cjs": "224001c378a6505ff31e0640a353dc215cd5c592a2861cd743208f00bb9d5240"
+  },
+  "passed": 22,
+  "total": 22,
+  "checks": 73,
+  "results": [
+    {
+      "id": "SC-C-01",
+      "pv": "PV-C-01",
+      "name": "建立订单—交付—买方确认完整闭环",
+      "type": "正常",
+      "refs": "UC05/06；BR06/08/18/20；ST-B-08/13/14/17/19/10",
+      "expected": "仅买方确认后完成并计成交一次",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.889Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "register",
+          "target": "O001",
+          "input": {
+            "delivered": true,
+            "reason": "模拟：当面交接教材"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已登记交付，等待买方确认；尚未计入成交。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-17"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "confirm",
+          "target": "O001",
+          "input": {
+            "received": true
+          },
+          "intent": "confirm",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "买方本人确认，订单完成与物品成交同时成立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-19",
+              "ST-B-10"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "登记不计成交",
+          "expected": 0,
+          "actual": 0
+        },
+        {
+          "description": "保存快照价格",
+          "expected": 35,
+          "actual": 35
+        },
+        {
+          "description": "只完成一次",
+          "expected": {
+            "completed": 1,
+            "amount": 35,
+            "active": 0
+          },
+          "actual": {
+            "completed": 1,
+            "amount": 35,
+            "active": 0
+          }
+        },
+        {
+          "description": "物品同时成交",
+          "expected": "已成交",
+          "actual": "已成交"
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "已成交",
+            "hidden": false,
+            "occupation": null
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "已完成",
+            "registered": true,
+            "disputed": false,
+            "chatReadOnly": true
+          }
+        ],
+        "summary": {
+          "completed": 1,
+          "amount": 35,
+          "active": 0
+        },
+        "notifications": 4
+      }
+    },
+    {
+      "id": "SC-C-02",
+      "pv": "PV-C-02",
+      "name": "响应丢失后沿用原意图重试",
+      "type": "异常",
+      "refs": "UC05；BR10；ST-B-S2",
+      "expected": "返回原订单及当前进度，不新增订单",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.890Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "lost",
+          "mode": "lost",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": false,
+            "code": "RESPONSE_LOST",
+            "message": "模拟响应丢失。业务可能已成立，请沿用原操作标识查询；不要新建交易。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "admin",
+          "operation": "restrict",
+          "target": "buyer",
+          "input": {
+            "restricted": true,
+            "reason": "模拟限制"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已更新账户限制；旧订单阶段保持。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "lost",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ],
+            "replay": true,
+            "currentState": "待交付"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "仅模拟响应丢失",
+          "expected": "RESPONSE_LOST",
+          "actual": "RESPONSE_LOST"
+        },
+        {
+          "description": "原订单回执",
+          "expected": "O001",
+          "actual": "O001"
+        },
+        {
+          "description": "返回当前进度",
+          "expected": "待交付",
+          "actual": "待交付"
+        },
+        {
+          "description": "不新增订单",
+          "expected": 1,
+          "actual": 1
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "交易中",
+            "hidden": false,
+            "occupation": "O001"
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "待交付",
+            "registered": false,
+            "disputed": false,
+            "chatReadOnly": false
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 1
+        },
+        "notifications": 2
+      }
+    },
+    {
+      "id": "SC-C-03",
+      "pv": "PV-C-03",
+      "name": "处理中与两个买方顺序竞争模拟",
+      "type": "异常",
+      "refs": "UC05；BR06/10；ST-B-S1/S2",
+      "expected": "处理中不建单，模拟先成立者唯一占用",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.890Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "pending",
+          "mode": "pending",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "PENDING",
+            "message": "模拟处理延迟：尚未建立订单，请稍后查询原结果。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "pending",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "PENDING",
+            "message": "本次操作处理中，请查询原结果。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          }
+        },
+        {
+          "actor": "buyer2",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "other",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "模拟控制",
+          "operation": "finish",
+          "target": "buyer|pending",
+          "result": {
+            "ok": false,
+            "code": "UNAVAILABLE",
+            "message": "物品当前不可交易，请刷新列表或查看本人已有订单。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "挂起未建单",
+          "expected": 0,
+          "actual": 0
+        },
+        {
+          "description": "同意图处理中",
+          "expected": "PENDING",
+          "actual": "PENDING"
+        },
+        {
+          "description": "后成立请求失败",
+          "expected": false,
+          "actual": false
+        },
+        {
+          "description": "至多一笔有效订单",
+          "expected": 1,
+          "actual": 1
+        },
+        {
+          "description": "无残留额外占用",
+          "expected": "O001",
+          "actual": "O001"
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "交易中",
+            "hidden": false,
+            "occupation": "O001"
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "待卖方确认",
+            "registered": false,
+            "disputed": false,
+            "chatReadOnly": false
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 1
+        },
+        "notifications": 1
+      }
+    },
+    {
+      "id": "SC-C-04",
+      "pv": "PV-C-04",
+      "name": "同意图关键内容冲突",
+      "type": "异常",
+      "refs": "UC05；BR10/20",
+      "expected": "拒绝变更内容，不改变原快照",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.890Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {
+            "price": 99
+          },
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": false,
+            "code": "INTENT_CONFLICT",
+            "message": "同次操作内容发生变化，请核对；新操作使用新标识。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "同意图内容冲突",
+          "expected": "INTENT_CONFLICT",
+          "actual": "INTENT_CONFLICT"
+        },
+        {
+          "description": "快照保持",
+          "expected": 35,
+          "actual": 35
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "交易中",
+            "hidden": false,
+            "occupation": "O001"
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "待卖方确认",
+            "registered": false,
+            "disputed": false,
+            "chatReadOnly": false
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 1
+        },
+        "notifications": 1
+      }
+    },
+    {
+      "id": "SC-C-05",
+      "pv": "PV-C-05",
+      "name": "未认证、自买和访问者下单",
+      "type": "权限",
+      "refs": "UC05；BR01/06；ST-B-S1",
+      "expected": "均拒绝，不建单",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.890Z",
+      "steps": [
+        {
+          "actor": "guest",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": false,
+            "code": "AUTH",
+            "message": "请先登录本人账户；角色切换仅为模拟。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          }
+        },
+        {
+          "actor": "unverified",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": false,
+            "code": "ELIGIBILITY",
+            "message": "当前账户不具备新交易资格。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "t3",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": false,
+            "code": "SELF",
+            "message": "不能购买本人物品。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "访问者拒绝",
+          "expected": "AUTH",
+          "actual": "AUTH"
+        },
+        {
+          "description": "未认证拒绝",
+          "expected": "ELIGIBILITY",
+          "actual": "ELIGIBILITY"
+        },
+        {
+          "description": "自买拒绝",
+          "expected": "SELF",
+          "actual": "SELF"
+        },
+        {
+          "description": "无订单",
+          "expected": 0,
+          "actual": 0
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "在售",
+            "hidden": false,
+            "occupation": null
+          }
+        ],
+        "orders": [],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 0
+        },
+        "notifications": 0
+      }
+    },
+    {
+      "id": "SC-C-06",
+      "pv": "PV-C-06",
+      "name": "越权访问订单与管理员代确认",
+      "type": "权限",
+      "refs": "UC06；BR08/14；ST-B-S4",
+      "expected": "拒绝非当事人及管理员代确认，不泄露私有订单",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.891Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "register",
+          "target": "O001",
+          "input": {
+            "delivered": true,
+            "reason": "模拟：当面交接教材"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已登记交付，等待买方确认；尚未计入成交。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-17"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "buyer2",
+          "operation": "confirm",
+          "target": "O001",
+          "input": {
+            "received": true
+          },
+          "intent": "t3",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": false,
+            "code": "OWNER",
+            "message": "仅本订单当事人可执行此操作。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "admin",
+          "operation": "confirm",
+          "target": "O001",
+          "input": {
+            "received": true
+          },
+          "intent": "t4",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": false,
+            "code": "OWNER",
+            "message": "仅本订单当事人可执行此操作。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "无归属拒绝",
+          "expected": "OWNER",
+          "actual": "OWNER"
+        },
+        {
+          "description": "管理员不能代确认",
+          "expected": false,
+          "actual": false
+        },
+        {
+          "description": "无他人订单",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "description": "原状态保持",
+          "expected": "待买方确认",
+          "actual": "待买方确认"
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "交易中",
+            "hidden": false,
+            "occupation": "O001"
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "待买方确认",
+            "registered": true,
+            "disputed": false,
+            "chatReadOnly": false
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 1
+        },
+        "notifications": 3
+      }
+    },
+    {
+      "id": "SC-C-07",
+      "pv": "PV-C-07",
+      "name": "取消声明与原因校验",
+      "type": "异常",
+      "refs": "UC07；BR09；ST-B-16/S3",
+      "expected": "缺少声明或原因时保持原状态",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.892Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "cancel",
+          "target": "O001",
+          "input": {
+            "reason": "不需要"
+          },
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": false,
+            "code": "DECLARATION",
+            "message": "请填写原因并明确声明尚未实际交付。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "cancel",
+          "target": "O001",
+          "input": {
+            "undelivered": true,
+            "reason": ""
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": false,
+            "code": "DECLARATION",
+            "message": "请填写原因并明确声明尚未实际交付。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "缺声明",
+          "expected": "DECLARATION",
+          "actual": "DECLARATION"
+        },
+        {
+          "description": "缺原因",
+          "expected": "DECLARATION",
+          "actual": "DECLARATION"
+        },
+        {
+          "description": "原状态保持",
+          "expected": "待卖方确认",
+          "actual": "待卖方确认"
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "交易中",
+            "hidden": false,
+            "occupation": "O001"
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "待卖方确认",
+            "registered": false,
+            "disputed": false,
+            "chatReadOnly": false
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 1
+        },
+        "notifications": 1
+      }
+    },
+    {
+      "id": "SC-C-08",
+      "pv": "PV-C-08",
+      "name": "取消先成立、后登记拒绝",
+      "type": "状态转换",
+      "refs": "UC07；BR08/09；ST-B-18/09",
+      "expected": "取消成立，后登记不覆盖结果",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.892Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "cancel",
+          "target": "O001",
+          "input": {
+            "undelivered": true,
+            "reason": "尚未交付，取消"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已取消并释放占用；隐藏和账户限制仍有效。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-18",
+              "ST-B-09"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已取消",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "register",
+          "target": "O001",
+          "input": {
+            "delivered": true,
+            "reason": "迟到登记"
+          },
+          "intent": "t3",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已取消",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": false,
+            "code": "TERMINAL",
+            "message": "订单已结束；历史保留，不重复改变成交。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已取消",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 3
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "后登记拒绝",
+          "expected": false,
+          "actual": false
+        },
+        {
+          "description": "取消保持",
+          "expected": "已取消",
+          "actual": "已取消"
+        },
+        {
+          "description": "占用释放",
+          "expected": null,
+          "actual": null
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "在售",
+            "hidden": false,
+            "occupation": null
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "已取消",
+            "registered": false,
+            "disputed": false,
+            "chatReadOnly": true
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 0
+        },
+        "notifications": 3
+      }
+    },
+    {
+      "id": "SC-C-09",
+      "pv": "PV-C-09",
+      "name": "登记先成立、后取消拒绝",
+      "type": "状态转换",
+      "refs": "UC06/07；BR08/09；ST-B-17/S3",
+      "expected": "登记成立，取消拒绝且保持占用",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.892Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "register",
+          "target": "O001",
+          "input": {
+            "delivered": true,
+            "reason": "模拟：当面交接教材"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已登记交付，等待买方确认；尚未计入成交。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-17"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "cancel",
+          "target": "O001",
+          "input": {
+            "undelivered": true,
+            "reason": "请求取消"
+          },
+          "intent": "t3",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": false,
+            "code": "CANCEL_BLOCKED",
+            "message": "当前不得普通取消；已交付请补登记，有分歧请申请处理。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "取消拒绝",
+          "expected": "CANCEL_BLOCKED",
+          "actual": "CANCEL_BLOCKED"
+        },
+        {
+          "description": "仍占用",
+          "expected": "O001",
+          "actual": "O001"
+        },
+        {
+          "description": "未成交",
+          "expected": 0,
+          "actual": 0
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "交易中",
+            "hidden": false,
+            "occupation": "O001"
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "待买方确认",
+            "registered": true,
+            "disputed": false,
+            "chatReadOnly": false
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 1
+        },
+        "notifications": 3
+      }
+    },
+    {
+      "id": "SC-C-10",
+      "pv": "PV-C-10",
+      "name": "隐藏后取消与解除隐藏",
+      "type": "状态转换",
+      "refs": "UC07/10；BR09/13；ST-B-09/S5",
+      "expected": "解除占用不解除隐藏；解除隐藏后重查资格",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.893Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "admin",
+          "operation": "hide",
+          "target": "I01",
+          "input": {
+            "hidden": true,
+            "reason": "模拟治理"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已更新隐藏标记；原生命周期状态保持。",
+            "st": [
+              "ST-B-S5"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": true,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "cancel",
+          "target": "O001",
+          "input": {
+            "undelivered": true,
+            "reason": "未交付取消"
+          },
+          "intent": "t3",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": true,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已取消并释放占用；隐藏和账户限制仍有效。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-18",
+              "ST-B-09"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": true,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已取消",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "admin",
+          "operation": "restrict",
+          "target": "seller",
+          "input": {
+            "restricted": true,
+            "reason": "模拟账户限制"
+          },
+          "intent": "t4",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": true,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已取消",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已更新账户限制；旧订单阶段保持。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": true,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已取消",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "admin",
+          "operation": "hide",
+          "target": "I01",
+          "input": {
+            "hidden": false,
+            "reason": "解除隐藏"
+          },
+          "intent": "t5",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": true,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已取消",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已更新隐藏标记；原生命周期状态保持。",
+            "st": [
+              "ST-B-S5"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已取消",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 3
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "生命周期回在售",
+          "expected": "在售",
+          "actual": "在售"
+        },
+        {
+          "description": "隐藏仍不可公开交易",
+          "expected": 0,
+          "actual": 0
+        },
+        {
+          "description": "仍受账户限制",
+          "expected": 0,
+          "actual": 0
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "在售",
+            "hidden": false,
+            "occupation": null
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "已取消",
+            "registered": false,
+            "disputed": false,
+            "chatReadOnly": true
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 0
+        },
+        "notifications": 3
+      }
+    },
+    {
+      "id": "SC-C-11",
+      "pv": "PV-C-11",
+      "name": "受限卖方旧单仍可闭合",
+      "type": "权限",
+      "refs": "UC06/11；BR08/12/17；ST-B-14/17/19",
+      "expected": "限制阻止新交易，保留旧单沟通交付收货",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.893Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "admin",
+          "operation": "restrict",
+          "target": "seller",
+          "input": {
+            "restricted": true,
+            "reason": "模拟违规处置"
+          },
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已更新账户限制；旧订单阶段保持。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "message",
+          "target": "O001",
+          "input": {
+            "text": "旧单交接说明"
+          },
+          "intent": "t3",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已记录旧单沟通；订单阶段保持。",
+            "orderId": "O001"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "register",
+          "target": "O001",
+          "input": {
+            "delivered": true,
+            "reason": "旧单实际交接模拟"
+          },
+          "intent": "t4",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已登记交付，等待买方确认；尚未计入成交。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-17"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "confirm",
+          "target": "O001",
+          "input": {
+            "received": true
+          },
+          "intent": "t5",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "买方本人确认，订单完成与物品成交同时成立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-19",
+              "ST-B-10"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "受限旧单可沟通",
+          "expected": true,
+          "actual": true
+        },
+        {
+          "description": "旧单正常完成",
+          "expected": 1,
+          "actual": 1
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "已成交",
+            "hidden": false,
+            "occupation": null
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "已完成",
+            "registered": true,
+            "disputed": false,
+            "chatReadOnly": true
+          }
+        ],
+        "summary": {
+          "completed": 1,
+          "amount": 35,
+          "active": 0
+        },
+        "notifications": 4
+      }
+    },
+    {
+      "id": "SC-C-12",
+      "pv": "PV-C-12",
+      "name": "受限买方旧单保留，新意图被拒",
+      "type": "权限",
+      "refs": "UC05/07/11；BR10/12",
+      "expected": "同次回执可读，普通旧单取消可行，新意图不可下单",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.893Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "admin",
+          "operation": "restrict",
+          "target": "buyer",
+          "input": {
+            "restricted": true,
+            "reason": "模拟账户限制"
+          },
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已更新账户限制；旧订单阶段保持。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ],
+            "replay": true,
+            "currentState": "待卖方确认"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "cancel",
+          "target": "O001",
+          "input": {
+            "undelivered": true,
+            "reason": "旧单取消"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已取消并释放占用；隐藏和账户限制仍有效。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-16",
+              "ST-B-09"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已取消",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "new",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已取消",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": false,
+            "code": "ELIGIBILITY",
+            "message": "当前账户不具备新交易资格。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已取消",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 2
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "同次回执保留",
+          "expected": "O001",
+          "actual": "O001"
+        },
+        {
+          "description": "新意图拒绝",
+          "expected": "ELIGIBILITY",
+          "actual": "ELIGIBILITY"
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "在售",
+            "hidden": false,
+            "occupation": null
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "已取消",
+            "registered": false,
+            "disputed": false,
+            "chatReadOnly": true
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 0
+        },
+        "notifications": 2
+      }
+    },
+    {
+      "id": "SC-C-13",
+      "pv": "PV-C-13",
+      "name": "争议受理与继续履约",
+      "type": "状态转换",
+      "refs": "UC10；BR15/19；ST-B-14/17",
+      "expected": "争议保留原阶段与占用；结案恢复原阶段",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.893Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "dispute",
+          "target": "O001",
+          "input": {
+            "reason": "交付事实待核查"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已受理模拟争议，保留原阶段与占用。",
+            "orderId": "O001"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": true,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "cancel",
+          "target": "O001",
+          "input": {
+            "reason": "申请取消",
+            "undelivered": true
+          },
+          "intent": "t3",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": true,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": false,
+            "code": "CANCEL_BLOCKED",
+            "message": "当前不得普通取消；已交付请补登记，有分歧请申请处理。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": true,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "admin",
+          "operation": "resolve",
+          "target": "O001",
+          "input": {
+            "outcome": "continue",
+            "reason": "模拟核查后继续"
+          },
+          "intent": "t4",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": true,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "争议结案，恢复受理时原阶段。",
+            "orderId": "O001",
+            "st": []
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "register",
+          "target": "O001",
+          "input": {
+            "reason": "继续后实际交接模拟",
+            "delivered": true
+          },
+          "intent": "t5",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已登记交付，等待买方确认；尚未计入成交。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-17"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 4
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "受理不新增状态",
+          "expected": "待交付",
+          "actual": "待交付"
+        },
+        {
+          "description": "受理保留占用",
+          "expected": "O001",
+          "actual": "O001"
+        },
+        {
+          "description": "争议受理阻止取消",
+          "expected": false,
+          "actual": false
+        },
+        {
+          "description": "恢复原阶段",
+          "expected": "待交付",
+          "actual": "待交付"
+        },
+        {
+          "description": "按原阶段继续",
+          "expected": "待买方确认",
+          "actual": "待买方确认"
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "交易中",
+            "hidden": false,
+            "occupation": "O001"
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "待买方确认",
+            "registered": true,
+            "disputed": false,
+            "chatReadOnly": false
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 1
+        },
+        "notifications": 4
+      }
+    },
+    {
+      "id": "SC-C-14",
+      "pv": "PV-C-14",
+      "name": "报告已交付未登记",
+      "type": "异常",
+      "refs": "UC07/10；BR09/15",
+      "expected": "受理交付冲突，普通取消拒绝",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.893Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "dispute",
+          "target": "O001",
+          "input": {
+            "reason": "已交付但尚未登记存在分歧",
+            "delivered": true
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已受理模拟争议，保留原阶段与占用。",
+            "orderId": "O001"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": true,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "cancel",
+          "target": "O001",
+          "input": {
+            "undelivered": true,
+            "reason": "申请取消"
+          },
+          "intent": "t3",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": true,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": false,
+            "code": "CANCEL_BLOCKED",
+            "message": "当前不得普通取消；已交付请补登记，有分歧请申请处理。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": true,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "报告交付后不能普通取消",
+          "expected": false,
+          "actual": false
+        },
+        {
+          "description": "不伪造登记",
+          "expected": false,
+          "actual": false
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "交易中",
+            "hidden": false,
+            "occupation": "O001"
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "待交付",
+            "registered": false,
+            "disputed": true,
+            "chatReadOnly": false
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 1
+        },
+        "notifications": 2
+      }
+    },
+    {
+      "id": "SC-C-15",
+      "pv": "PV-C-15",
+      "name": "争议异常终止与禁止自动重售",
+      "type": "状态转换",
+      "refs": "UC10；BR18/19；ST-B-11/20",
+      "expected": "有依据的终止释放占用，物品不可售，不计成交",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.893Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "register",
+          "target": "O001",
+          "input": {
+            "delivered": true,
+            "reason": "模拟：当面交接教材"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已登记交付，等待买方确认；尚未计入成交。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-17"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "dispute",
+          "target": "O001",
+          "input": {
+            "reason": "模拟无法履约分歧"
+          },
+          "intent": "t3",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已受理模拟争议，保留原阶段与占用。",
+            "orderId": "O001"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": true,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "admin",
+          "operation": "resolve",
+          "target": "O001",
+          "input": {
+            "outcome": "terminate",
+            "reason": "待核查"
+          },
+          "intent": "t4",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": true,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": false,
+            "code": "EVIDENCE",
+            "message": "请先记录已核查无法履约的依据；此处仅模拟核查结果。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": true,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "admin",
+          "operation": "resolve",
+          "target": "O001",
+          "input": {
+            "outcome": "terminate",
+            "reason": "模拟核查材料已齐全",
+            "evidence": "verified"
+          },
+          "intent": "t5",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": true,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "异常终止并释放占用，物品仍不可售。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-11",
+              "ST-B-20"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易异常终止",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已异常终止",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 4
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "无核查标记不能终止",
+          "expected": "EVIDENCE",
+          "actual": "EVIDENCE"
+        },
+        {
+          "description": "异常终止物品不可售",
+          "expected": "交易异常终止",
+          "actual": "交易异常终止"
+        },
+        {
+          "description": "释放占用",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "description": "无重售",
+          "expected": [],
+          "actual": []
+        },
+        {
+          "description": "不计成交",
+          "expected": 0,
+          "actual": 0
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "交易异常终止",
+            "hidden": false,
+            "occupation": null
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "已异常终止",
+            "registered": true,
+            "disputed": false,
+            "chatReadOnly": true
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 0
+        },
+        "notifications": 4
+      }
+    },
+    {
+      "id": "SC-C-16",
+      "pv": "PV-C-16",
+      "name": "登记后未回应与重复催办",
+      "type": "异常",
+      "refs": "UC06/10；BR19；AE-B-02",
+      "expected": "只发一次提醒，保持待确认与占用，不自动完成",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.894Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "register",
+          "target": "O001",
+          "input": {
+            "delivered": true,
+            "reason": "模拟：当面交接教材"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已登记交付，等待买方确认；尚未计入成交。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-17"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "remind",
+          "target": "O001",
+          "input": {},
+          "intent": "t3",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已发出一次模拟站内提醒；阶段及占用保持。",
+            "orderId": "O001"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 4
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "remind",
+          "target": "O001",
+          "input": {},
+          "intent": "t4",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 4
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "本阶段已提醒，不新增通知。",
+            "orderId": "O001"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 4
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "只新增一次提醒",
+          "expected": 4,
+          "actual": 4
+        },
+        {
+          "description": "不自动改变阶段",
+          "expected": "待买方确认",
+          "actual": "待买方确认"
+        },
+        {
+          "description": "不自动成交",
+          "expected": 0,
+          "actual": 0
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "交易中",
+            "hidden": false,
+            "occupation": "O001"
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "待买方确认",
+            "registered": true,
+            "disputed": false,
+            "chatReadOnly": false
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 1
+        },
+        "notifications": 4
+      }
+    },
+    {
+      "id": "SC-C-17",
+      "pv": "PV-C-17",
+      "name": "通知失败不撤销订单",
+      "type": "异常",
+      "refs": "1.6/UC05；BR16；AE-B-03",
+      "expected": "通知失败时业务结果保留，可在本人订单查询",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.894Z",
+      "steps": [
+        {
+          "actor": "模拟控制",
+          "operation": "setNotificationFailure",
+          "input": {
+            "enabled": true
+          },
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": true,
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "通知故障注入",
+          "expected": "发送失败",
+          "actual": "发送失败"
+        },
+        {
+          "description": "本人记录可查",
+          "expected": "O001",
+          "actual": "O001"
+        },
+        {
+          "description": "占用保持",
+          "expected": "O001",
+          "actual": "O001"
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "交易中",
+            "hidden": false,
+            "occupation": "O001"
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "待卖方确认",
+            "registered": false,
+            "disputed": false,
+            "chatReadOnly": false
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 1
+        },
+        "notifications": 1
+      }
+    },
+    {
+      "id": "SC-C-18",
+      "pv": "PV-C-18",
+      "name": "终态重复确认与会话只读",
+      "type": "状态转换",
+      "refs": "UC06；BR10/17/18/20；ST-B-S4",
+      "expected": "同次回原结果，新意图重复拒绝，成交一次、会话只读",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.894Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "register",
+          "target": "O001",
+          "input": {
+            "delivered": true,
+            "reason": "模拟：当面交接教材"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已登记交付，等待买方确认；尚未计入成交。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-17"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "confirm",
+          "target": "O001",
+          "input": {
+            "received": true
+          },
+          "intent": "confirm",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "买方本人确认，订单完成与物品成交同时成立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-19",
+              "ST-B-10"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "confirm",
+          "target": "O001",
+          "input": {
+            "received": true
+          },
+          "intent": "confirm",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "买方本人确认，订单完成与物品成交同时成立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-19",
+              "ST-B-10"
+            ],
+            "replay": true,
+            "currentState": "已完成"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "confirm",
+          "target": "O001",
+          "input": {
+            "received": true
+          },
+          "intent": "newconfirm",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          },
+          "result": {
+            "ok": false,
+            "code": "TERMINAL",
+            "message": "订单已结束；历史保留，不重复改变成交。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "message",
+          "target": "O001",
+          "input": {
+            "text": "终态消息"
+          },
+          "intent": "t3",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          },
+          "result": {
+            "ok": false,
+            "code": "READ_ONLY",
+            "message": "订单已结束，会话只读；需补证请使用举报反馈。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "同次回执",
+          "expected": true,
+          "actual": true
+        },
+        {
+          "description": "新意图重复确认拒绝",
+          "expected": false,
+          "actual": false
+        },
+        {
+          "description": "会话只读",
+          "expected": "READ_ONLY",
+          "actual": "READ_ONLY"
+        },
+        {
+          "description": "不重复计数",
+          "expected": 1,
+          "actual": 1
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "已成交",
+            "hidden": false,
+            "occupation": null
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "已完成",
+            "registered": true,
+            "disputed": false,
+            "chatReadOnly": true
+          }
+        ],
+        "summary": {
+          "completed": 1,
+          "amount": 35,
+          "active": 0
+        },
+        "notifications": 4
+      }
+    },
+    {
+      "id": "SC-C-19",
+      "pv": "PV-C-19",
+      "name": "终态反馈与同事件独立回执",
+      "type": "正常",
+      "refs": "UC09/10；BR15/16/18；ST-B-S6",
+      "expected": "追加反馈，关联事件但保留各自回执；不重开订单",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.894Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "accept",
+          "target": "O001",
+          "input": {},
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "卖方已接单，等待线下交付。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-14"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "register",
+          "target": "O001",
+          "input": {
+            "delivered": true,
+            "reason": "模拟：当面交接教材"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待交付",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 2
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已登记交付，等待买方确认；尚未计入成交。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-17"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "confirm",
+          "target": "O001",
+          "input": {
+            "received": true
+          },
+          "intent": "t3",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待买方确认",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 3
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "买方本人确认，订单完成与物品成交同时成立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-19",
+              "ST-B-10"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "dispute",
+          "target": "O001",
+          "input": {
+            "reason": "终态分歧"
+          },
+          "intent": "t4",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          },
+          "result": {
+            "ok": false,
+            "code": "TERMINAL",
+            "message": "订单已结束；历史保留，不重复改变成交。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "report",
+          "target": "O001",
+          "input": {
+            "reason": "反馈一",
+            "event": "质量反馈"
+          },
+          "intent": "t5",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已记录终态反馈，不重开订单、不改变成交。",
+            "orderId": "O001",
+            "reportId": "R1",
+            "st": [
+              "ST-B-S6"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "report",
+          "target": "O001",
+          "input": {
+            "reason": "补充反馈",
+            "event": "质量反馈"
+          },
+          "intent": "t6",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已记录终态反馈，不重开订单、不改变成交。",
+            "orderId": "O001",
+            "reportId": "R2",
+            "st": [
+              "ST-B-S6"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "已成交",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已完成",
+                "registered": true,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 1,
+              "amount": 35,
+              "active": 0
+            },
+            "notifications": 4
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "不重开争议",
+          "expected": "TERMINAL",
+          "actual": "TERMINAL"
+        },
+        {
+          "description": "回执独立",
+          "expected": true,
+          "actual": true
+        },
+        {
+          "description": "关联同事件",
+          "expected": [
+            "R1"
+          ],
+          "actual": [
+            "R1"
+          ]
+        },
+        {
+          "description": "成交不回滚",
+          "expected": 1,
+          "actual": 1
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "已成交",
+            "hidden": false,
+            "occupation": null
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "已完成",
+            "registered": true,
+            "disputed": false,
+            "chatReadOnly": true
+          }
+        ],
+        "summary": {
+          "completed": 1,
+          "amount": 35,
+          "active": 0
+        },
+        "notifications": 4
+      }
+    },
+    {
+      "id": "SC-C-20",
+      "pv": "PV-C-20",
+      "name": "隐藏与恢复权限和理由校验",
+      "type": "权限",
+      "refs": "UC10/11；BR12/13/16；ST-B-S5",
+      "expected": "非管理员或缺原因不改变治理状态",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.894Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "hide",
+          "target": "I01",
+          "input": {
+            "hidden": true,
+            "reason": "越权"
+          },
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": false,
+            "code": "ROLE",
+            "message": "该操作仅限授权管理员。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          }
+        },
+        {
+          "actor": "admin",
+          "operation": "hide",
+          "target": "I01",
+          "input": {
+            "hidden": true,
+            "reason": ""
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": false,
+            "code": "REASON",
+            "message": "治理操作需要填写依据或原因。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "非管理员禁止",
+          "expected": "ROLE",
+          "actual": "ROLE"
+        },
+        {
+          "description": "必须有依据",
+          "expected": "REASON",
+          "actual": "REASON"
+        },
+        {
+          "description": "未改变隐藏",
+          "expected": false,
+          "actual": false
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "在售",
+            "hidden": false,
+            "occupation": null
+          }
+        ],
+        "orders": [],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 0
+        },
+        "notifications": 0
+      }
+    },
+    {
+      "id": "SC-C-21",
+      "pv": "PV-C-21",
+      "name": "快照独立与公开字段最小化",
+      "type": "正常",
+      "refs": "UC02/05；BR14/20",
+      "expected": "当前资料变化不回写订单快照，公开数据不含私有记录",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.894Z",
+      "steps": [
+        {
+          "actor": "模拟控制",
+          "operation": "readPublicItems",
+          "input": {},
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": [
+            {
+              "id": "I01",
+              "title": "软件工程教材",
+              "category": "教材",
+              "description": "模拟物品：教材一本，附课程笔记。",
+              "price": 35,
+              "sellerNickname": "卖方",
+              "verified": true
+            }
+          ],
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          }
+        },
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "模拟控制",
+          "operation": "modifyCurrentDescription",
+          "input": {
+            "itemId": "I01",
+            "description": "测试内部修改当前资料"
+          },
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "current": "测试内部修改当前资料",
+            "snapshot": "模拟物品：教材一本，附课程笔记。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "公开字段限定",
+          "expected": [
+            "category",
+            "description",
+            "id",
+            "price",
+            "sellerNickname",
+            "title",
+            "verified"
+          ],
+          "actual": [
+            "category",
+            "description",
+            "id",
+            "price",
+            "sellerNickname",
+            "title",
+            "verified"
+          ]
+        },
+        {
+          "description": "快照不回写",
+          "expected": "模拟物品：教材一本，附课程笔记。",
+          "actual": "模拟物品：教材一本，附课程笔记。"
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "交易中",
+            "hidden": false,
+            "occupation": "O001"
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "待卖方确认",
+            "registered": false,
+            "disputed": false,
+            "chatReadOnly": false
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 1
+        },
+        "notifications": 1
+      }
+    },
+    {
+      "id": "SC-C-22",
+      "pv": "PV-C-22",
+      "name": "卖方拒单与限制重检",
+      "type": "状态转换",
+      "refs": "UC06；BR07/12/13；ST-B-15/09",
+      "expected": "拒单释放占用，账户限制仍阻止公开",
+      "method": "agent执行Node.js内存模拟程序；非人工走查/后台并发验证",
+      "executedAt": "2026-10-22T02:38:22.894Z",
+      "steps": [
+        {
+          "actor": "buyer",
+          "operation": "place",
+          "target": "I01",
+          "input": {},
+          "intent": "purchase",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 0
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "订单与预占同时建立。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-08",
+              "ST-B-13"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "admin",
+          "operation": "restrict",
+          "target": "seller",
+          "input": {
+            "restricted": true,
+            "reason": "治理模拟"
+          },
+          "intent": "t1",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已更新账户限制；旧订单阶段保持。"
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          }
+        },
+        {
+          "actor": "seller",
+          "operation": "reject",
+          "target": "O001",
+          "input": {
+            "reason": "无法履约拒单"
+          },
+          "intent": "t2",
+          "mode": "normal",
+          "before": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "交易中",
+                "hidden": false,
+                "occupation": "O001"
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "待卖方确认",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": false
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 1
+            },
+            "notifications": 1
+          },
+          "result": {
+            "ok": true,
+            "code": "OK",
+            "message": "已拒单，独立限制仍有效。",
+            "orderId": "O001",
+            "st": [
+              "ST-B-15",
+              "ST-B-09"
+            ]
+          },
+          "after": {
+            "items": [
+              {
+                "id": "I01",
+                "state": "在售",
+                "hidden": false,
+                "occupation": null
+              }
+            ],
+            "orders": [
+              {
+                "id": "O001",
+                "state": "已拒绝",
+                "registered": false,
+                "disputed": false,
+                "chatReadOnly": true
+              }
+            ],
+            "summary": {
+              "completed": 0,
+              "amount": 0,
+              "active": 0
+            },
+            "notifications": 2
+          }
+        }
+      ],
+      "checks": [
+        {
+          "description": "拒单终态",
+          "expected": "已拒绝",
+          "actual": "已拒绝"
+        },
+        {
+          "description": "释放占用",
+          "expected": null,
+          "actual": null
+        },
+        {
+          "description": "受限不可售",
+          "expected": 0,
+          "actual": 0
+        }
+      ],
+      "status": "通过",
+      "error": null,
+      "final": {
+        "items": [
+          {
+            "id": "I01",
+            "state": "在售",
+            "hidden": false,
+            "occupation": null
+          }
+        ],
+        "orders": [
+          {
+            "id": "O001",
+            "state": "已拒绝",
+            "registered": false,
+            "disputed": false,
+            "chatReadOnly": true
+          }
+        ],
+        "summary": {
+          "completed": 0,
+          "amount": 0,
+          "active": 0
+        },
+        "notifications": 2
+      }
+    }
+  ]
+}

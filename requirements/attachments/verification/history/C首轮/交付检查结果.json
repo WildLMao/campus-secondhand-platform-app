@@ -1,0 +1,22 @@
+{
+  "date": "2026-10-21",
+  "executor": "Codex agent / C",
+  "input_commit": "11e77c4923c04e0911227170f11501e28ab5fa9a",
+  "markdown_outside_C_byte_equal": true,
+  "original_word_body_elements_retained": 302,
+  "word_other_archive_parts_byte_equal": true,
+  "toc_page_fields_updated": 52,
+  "protected_original_hashes_unchanged": true,
+  "original_project_input_files_unchanged_before_install": 54,
+  "program_scenarios_passed": 22,
+  "program_assertions_passed": 73,
+  "browser_checks_passed": 7,
+  "local_links_resolved": 136,
+  "pdf_pages": {
+    "校园二手交易与物品流转平台需求规格说明书": 37,
+    "需求分析质量验证报告": 4
+  },
+  "visual_inspection": "41 pages reviewed as contact sheets; C pages and quality report inspected at larger size",
+  "independent_review": "pending D",
+  "student_walkthrough": "pending"
+}

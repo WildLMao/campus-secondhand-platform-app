@@ -1,0 +1,31 @@
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: campus
+      MYSQL_USER: campus
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+  app:
+    build: .
+    ports: ["127.0.0.1:18080:18080"]
+    environment:
+      DB_URL: jdbc:mysql://mysql:3306/campus?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      DB_USER: campus
+      DB_PASSWORD: ${DB_PASSWORD}
+      DEMO_SEED: ${DEMO_SEED:-true}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    volumes:
+      - uploads:/app/data/uploads
+volumes:
+  mysql-data:
+  uploads:

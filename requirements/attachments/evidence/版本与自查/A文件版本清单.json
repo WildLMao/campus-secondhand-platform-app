@@ -1,0 +1,100 @@
+{
+  "version": "A-business-v2-2026-10-20-suggestions",
+  "date": "2026-10-20",
+  "main": "366b8b5b18d375ea0f4badec751461ec63422519",
+  "input_sha256": "569a2771066ba61eb5c334144df42f504c40d355a9147a20b5c35d1439240d36",
+  "pages": 20,
+  "files": [
+    {
+      "path": "attachments/A/PR回复.md",
+      "bytes": 2618,
+      "sha256": "513fb8d7d9d5086e13222d72adae308d654dc371a20c187dbff6e8c462325129"
+    },
+    {
+      "path": "attachments/A/依据/学生需求分析与AI智能体使用验证报告.md",
+      "bytes": 33009,
+      "sha256": "83a7cf00244652fd836f5b263fd6db84085f1873a2bf3067955be28c10bb8ee1"
+    },
+    {
+      "path": "attachments/A/依据/实践项目说明(1).pdf",
+      "bytes": 119776,
+      "sha256": "bbb218aec686fd0a204a22e339b70076e45f9c46649637b9764f01a9db8a5e04"
+    },
+    {
+      "path": "attachments/A/依据与规则核验记录.md",
+      "bytes": 9328,
+      "sha256": "f6c6a3c656961796d8bd0974bdd36bbc38e7aa40cf9963324b790ce4f4f42913"
+    },
+    {
+      "path": "attachments/A/修订说明与审核交接.md",
+      "bytes": 5275,
+      "sha256": "7dce985d1c36b5ade3434a6fce2b626812aa63cd6354a34e02726f8d9b87d12b"
+    },
+    {
+      "path": "attachments/A/关键AI交互与人工决定.md",
+      "bytes": 6242,
+      "sha256": "65bb57da06df246a81da6b52321440433c339973a2062c25007a286d2a2cb97e"
+    },
+    {
+      "path": "attachments/A/图源与导出/图1-1_系统上下文图.png",
+      "bytes": 153374,
+      "sha256": "614c0504de258a9699b402b3d09b7f45501a0bb89afeea0ecdc15a7662cc95c8"
+    },
+    {
+      "path": "attachments/A/图源与导出/图1-1_系统上下文图.svg",
+      "bytes": 4534,
+      "sha256": "66120889ab5aa7c988f437a7b29900a326c9b72f91fc3c80aaf336f88e26aaf6"
+    },
+    {
+      "path": "attachments/A/图源与导出/图2-1_UML用例图.png",
+      "bytes": 209098,
+      "sha256": "cc127cd7a191b616fc4c57275b7a280240c6e7c9c85aad11e5ad904b298262a5"
+    },
+    {
+      "path": "attachments/A/图源与导出/图2-1_UML用例图.svg",
+      "bytes": 9310,
+      "sha256": "b55ac5c114ca76b03d3d25294e177d9709953ca117e1ab8362604d4381150831"
+    },
+    {
+      "path": "attachments/A/图源与导出/图5-1_核心交易主流程泳道图.png",
+      "bytes": 154651,
+      "sha256": "cdd036611006996306c5cb9421b715dad7334e9cd66c50c3077e1b56a867ddb9"
+    },
+    {
+      "path": "attachments/A/图源与导出/图5-1_核心交易主流程泳道图.svg",
+      "bytes": 10435,
+      "sha256": "cf2c08c2bceb31493047551b046e8268408893f677e642a6c412f5b584d2d37a"
+    },
+    {
+      "path": "attachments/A/图源与导出/重绘用例图.py",
+      "bytes": 4161,
+      "sha256": "e8d26702301345d6a505eec77e2e51d22ae2fec9f5a3697460fa54faa0941c21"
+    },
+    {
+      "path": "attachments/A/自查记录.md",
+      "bytes": 2946,
+      "sha256": "55d3822ae465ed08c9696486ff1005565aeb8f0f7e0d2153500d320df413d555"
+    },
+    {
+      "path": "attachments/A/附件索引.md",
+      "bytes": 2675,
+      "sha256": "a00d38b987a802553e0c50f0279fc55f5c5c99b8ba5c84e530ad546265825d19"
+    },
+    {
+      "path": "documents/校园二手交易与物品流转平台需求规格说明书.docx",
+      "bytes": 612075,
+      "sha256": "e6263da820a25af70f5c66ea4d1345c1449258eaa51837649c8479a346466580"
+    },
+    {
+      "path": "documents/校园二手交易与物品流转平台需求规格说明书.md",
+      "bytes": 32293,
+      "sha256": "4acbd2ef266a6ee3e4f757cadb571beafefa7e7ab0090eb49d95b13cabac818a"
+    },
+    {
+      "path": "documents/校园二手交易与物品流转平台需求规格说明书.pdf",
+      "bytes": 968254,
+      "sha256": "f21ae125746ead890625eaa1ec854e7f0d46418be3ad1a1a299bfa52615af71a"
+    }
+  ],
+  "note": "清单不包含自身哈希；documents仅保留统一文件名，更新原PR #2，不覆盖初始化目录。"
+}

@@ -1,0 +1,142 @@
+{
+  "version": "C-prototype-v1.1",
+  "date": "2026-10-22T10:09:07.162Z",
+  "method": "逐项提取走查Markdown中的精确程序调用，在全新Platform实例执行，与本轮程序结果逐步比对响应和最终状态；不替代学生人工或页面走查",
+  "scriptSha256": "e0592f9e900775a4f742049e8e03f4042cada21b53ba4b370d6b0d96a84fcea4",
+  "passed": 22,
+  "total": 22,
+  "results": [
+    {
+      "id": "SC-C-01",
+      "commands": 4,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-02",
+      "commands": 4,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-03",
+      "commands": 4,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-04",
+      "commands": 2,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-05",
+      "commands": 3,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-06",
+      "commands": 5,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-07",
+      "commands": 3,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-08",
+      "commands": 4,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-09",
+      "commands": 4,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-10",
+      "commands": 6,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-11",
+      "commands": 6,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-12",
+      "commands": 5,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-13",
+      "commands": 6,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-14",
+      "commands": 4,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-15",
+      "commands": 6,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-16",
+      "commands": 5,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-17",
+      "commands": 2,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-18",
+      "commands": 7,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-19",
+      "commands": 7,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-20",
+      "commands": 2,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-21",
+      "commands": 3,
+      "status": "通过",
+      "error": null
+    },
+    {
+      "id": "SC-C-22",
+      "commands": 3,
+      "status": "通过",
+      "error": null
+    }
+  ]
+}

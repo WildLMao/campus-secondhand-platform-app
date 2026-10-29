@@ -1,0 +1,6 @@
+**/node_modules
+**/target
+**/data
+.runtime
+.npm-cache
+frontend/dist

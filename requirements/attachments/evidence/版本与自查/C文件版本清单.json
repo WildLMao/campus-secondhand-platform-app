@@ -1,0 +1,428 @@
+{
+  "version": "C-delivery-v1.1",
+  "date": "2026-10-22",
+  "input_commit": "db80da86655dc36eb12ca70a0402adf88a9b61b4",
+  "note": "本清单不含自身；修正前清单留存于verification/revision-20261022。documents为2026-10-21历史报告，本轮只更新C附件及总索引/清单。",
+  "files": {
+    "attachments/.gitkeep": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "attachments/A/PR回复.md": {
+      "bytes": 2602,
+      "sha256": "e45e3b7d44713c6851bfef10041a4b236a174714aa9d12bb524a6caa6792fbbc"
+    },
+    "attachments/A/依据/学生需求分析与AI智能体使用验证报告.md": {
+      "bytes": 33009,
+      "sha256": "83a7cf00244652fd836f5b263fd6db84085f1873a2bf3067955be28c10bb8ee1"
+    },
+    "attachments/A/依据/实践项目说明(1).pdf": {
+      "bytes": 119776,
+      "sha256": "bbb218aec686fd0a204a22e339b70076e45f9c46649637b9764f01a9db8a5e04"
+    },
+    "attachments/A/依据与规则核验记录.md": {
+      "bytes": 9248,
+      "sha256": "b5e299d6cc6d6cbc034493d03adad811046f3f1dff670a604567e70dd0c1f6eb"
+    },
+    "attachments/A/修订说明与审核交接.md": {
+      "bytes": 5216,
+      "sha256": "d7f50889664f95b1279de81103b09185194b9559b593a6b2a7477ccbae674658"
+    },
+    "attachments/A/关键AI交互与人工决定.md": {
+      "bytes": 6152,
+      "sha256": "49b946e97be083a57359f94fa4fff230195455129ad58a66a31410b6b2d33e19"
+    },
+    "attachments/A/图源与导出/图1-1_系统上下文图.png": {
+      "bytes": 153374,
+      "sha256": "614c0504de258a9699b402b3d09b7f45501a0bb89afeea0ecdc15a7662cc95c8"
+    },
+    "attachments/A/图源与导出/图1-1_系统上下文图.svg": {
+      "bytes": 4534,
+      "sha256": "66120889ab5aa7c988f437a7b29900a326c9b72f91fc3c80aaf336f88e26aaf6"
+    },
+    "attachments/A/图源与导出/图2-1_UML用例图.png": {
+      "bytes": 209098,
+      "sha256": "cc127cd7a191b616fc4c57275b7a280240c6e7c9c85aad11e5ad904b298262a5"
+    },
+    "attachments/A/图源与导出/图2-1_UML用例图.svg": {
+      "bytes": 9310,
+      "sha256": "b55ac5c114ca76b03d3d25294e177d9709953ca117e1ab8362604d4381150831"
+    },
+    "attachments/A/图源与导出/图5-1_核心交易主流程泳道图.png": {
+      "bytes": 154651,
+      "sha256": "cdd036611006996306c5cb9421b715dad7334e9cd66c50c3077e1b56a867ddb9"
+    },
+    "attachments/A/图源与导出/图5-1_核心交易主流程泳道图.svg": {
+      "bytes": 10435,
+      "sha256": "cf2c08c2bceb31493047551b046e8268408893f677e642a6c412f5b584d2d37a"
+    },
+    "attachments/A/图源与导出/重绘用例图.py": {
+      "bytes": 4161,
+      "sha256": "e8d26702301345d6a505eec77e2e51d22ae2fec9f5a3697460fa54faa0941c21"
+    },
+    "attachments/A/文件版本清单.json": {
+      "bytes": 3894,
+      "sha256": "bd58c1434432a45687ccefdbdf6871867687f08bf0a2bbeb7cba592f2a104d22"
+    },
+    "attachments/A/自查记录.md": {
+      "bytes": 2914,
+      "sha256": "91d7dc3c61c31c39cb45ce13e2c41db06dfec195eda0393e12e4e789a5b2490c"
+    },
+    "attachments/A/附件索引.md": {
+      "bytes": 2653,
+      "sha256": "77c26c88a644f269b84b629702f3c34657c8227b291a00193b1afac9dd366556"
+    },
+    "attachments/B/依据/输入版本与引用说明.md": {
+      "bytes": 3344,
+      "sha256": "72d325a065b2deb8f1f08d5a7e39f0d8a83d298e26a96557ab13d3f00bc58b7e"
+    },
+    "attachments/B/修订说明与审核交接.md": {
+      "bytes": 8158,
+      "sha256": "382599274e279c148008783211767ba408d3000c62a015a7f498eeca54ae37e8"
+    },
+    "attachments/B/关键AI交互与人工决定.md": {
+      "bytes": 8458,
+      "sha256": "02add39eca717b9fb67b624df2dcca6b1e3bcf40f57cda61886bc36a100a9382"
+    },
+    "attachments/B/图源与导出/图3-1_领域类图.png": {
+      "bytes": 336930,
+      "sha256": "1da9ebdc9cc468e652d6c0ab657d5683e203a85fd8e0fb2a99a570722636c9f0"
+    },
+    "attachments/B/图源与导出/图3-1_领域类图.svg": {
+      "bytes": 17906,
+      "sha256": "3f0386028b247c34a92b2ab2ebde2625c15c43ae53e0b827a6b983b8b950d76a"
+    },
+    "attachments/B/图源与导出/图5-2_异常与状态联动泳道图.png": {
+      "bytes": 221093,
+      "sha256": "a0a08eee83917bc7ae1154bd632f96e8d222e3c143b85c16e139294b67cd199f"
+    },
+    "attachments/B/图源与导出/图5-2_异常与状态联动泳道图.svg": {
+      "bytes": 12741,
+      "sha256": "332e2c7775936eabde5af56fae95fec60b7633bc02b015f55f9c9a6c47e20950"
+    },
+    "attachments/B/图源与导出/图5-3_物品状态机图.png": {
+      "bytes": 180517,
+      "sha256": "110fc13fc62fc01c2833a740352ac1ea057034fee6ceac9897261c12061a7e83"
+    },
+    "attachments/B/图源与导出/图5-3_物品状态机图.svg": {
+      "bytes": 7729,
+      "sha256": "79b6366ca25c1b516da764429e546bcacb084b3ed26e80d4d9e88868a89195bc"
+    },
+    "attachments/B/图源与导出/图5-4_订单状态机图.png": {
+      "bytes": 166908,
+      "sha256": "8e124a7edf7f89470737be42e21f152d4605c19474e078007935a4c147408f87"
+    },
+    "attachments/B/图源与导出/图5-4_订单状态机图.svg": {
+      "bytes": 7221,
+      "sha256": "c1761527eefe10a53d365023151d11d1854e9c3366d6959abc6d3f0d14e743b1"
+    },
+    "attachments/B/图源与导出/图5-5_下单预占顺序图.png": {
+      "bytes": 231303,
+      "sha256": "83a360d11fe3d0dfa34030875f21b5a0fe309198f1673473d45c703d9b5938f2"
+    },
+    "attachments/B/图源与导出/图5-5_下单预占顺序图.svg": {
+      "bytes": 9043,
+      "sha256": "f824fe22da3c74b6bfe5dd4283ebcfab3195198b23dedf93c0942b452d1dce2e"
+    },
+    "attachments/B/图源与导出/生成图3-1领域类图.py": {
+      "bytes": 6548,
+      "sha256": "38858356b2257ec44f20fe07b1c92b19b33ca361a9c939e508c0deb8c5cb4d03"
+    },
+    "attachments/B/图源与导出/生成图5-2异常与状态联动泳道图.py": {
+      "bytes": 4705,
+      "sha256": "572353e5be67c45457923b6a10a1f0cae6db4a17751e1b883b86a4db61d228f6"
+    },
+    "attachments/B/图源与导出/生成图5-3物品状态机图.py": {
+      "bytes": 3859,
+      "sha256": "3a3e93cc07b7710909bf75d62e9db7307aa72a78561b6e0644f1dc26b39a7d3f"
+    },
+    "attachments/B/图源与导出/生成图5-4订单状态机图.py": {
+      "bytes": 3414,
+      "sha256": "c19c975cc0cb4f00be63ad09fdf986d9e6e3f21126a376fbfdc2519a4d26c3ef"
+    },
+    "attachments/B/图源与导出/生成图5-5下单预占顺序图.py": {
+      "bytes": 3404,
+      "sha256": "697ecbfa5bf78f3b3e47b4c35c0e88ec54927dc9f3bffaf8bbb1eca0373ef7a5"
+    },
+    "attachments/B/图源与导出/绘图工具.py": {
+      "bytes": 12624,
+      "sha256": "1406be286e36d163c33fcda5630948e48996d310d9c80d29f5126d88c7c64601"
+    },
+    "attachments/B/文件版本清单.json": {
+      "bytes": 5521,
+      "sha256": "7a6ed5b7a20db7da2b01956bb57e38864ed75943ddac796ccf084f3b2be929d9"
+    },
+    "attachments/B/模型与规则依据核验记录.md": {
+      "bytes": 9590,
+      "sha256": "5f31aa3a03e99c418422513f21d6cd1e2266812df5922a3429001e97a7e4425c"
+    },
+    "attachments/B/模型说明与状态转换核对.md": {
+      "bytes": 12810,
+      "sha256": "f9aa94c17f07f6ec6c46c97c7709a3117e6d361886323cca1a31478802af62cc"
+    },
+    "attachments/B/自查记录.md": {
+      "bytes": 3990,
+      "sha256": "96b731e6d8ae84e91e7e231d0caf7daf02bec382e813c6d0c0a9002d837c14af"
+    },
+    "attachments/B/附件索引.md": {
+      "bytes": 3486,
+      "sha256": "3d9252d8bd8afca84e900e5e96072899f6c691e6d2382dc5bc6db623683f2cd4"
+    },
+    "attachments/C/prototype/browser-check.cjs": {
+      "bytes": 8995,
+      "sha256": "86d8362575c1632954e1096e118d6ac296a23207063fc9d0655fbb95df9f6827"
+    },
+    "attachments/C/prototype/core.js": {
+      "bytes": 14195,
+      "sha256": "d0d39025582b12e69ea86435d992a20ee8e82658699de5605220532ce466e815"
+    },
+    "attachments/C/prototype/index.html": {
+      "bytes": 3431,
+      "sha256": "50d63d2e066ad33f8b23b96fb8ad86396ed3e6364bad38659b7975219044de32"
+    },
+    "attachments/C/prototype/style.css": {
+      "bytes": 4579,
+      "sha256": "6017a3d870c89fee5a6a38a21d62feb106409ec63afb84c8d9c7bfceb770e84a"
+    },
+    "attachments/C/prototype/ui.js": {
+      "bytes": 10812,
+      "sha256": "b88da50ba679e5fd1e3e27935305bd9526e13d23948b21480ed690ad915638a2"
+    },
+    "attachments/C/prototype/verify.cjs": {
+      "bytes": 14044,
+      "sha256": "224001c378a6505ff31e0640a353dc215cd5c592a2861cd743208f00bb9d5240"
+    },
+    "attachments/C/prototype/walkthrough-check.cjs": {
+      "bytes": 2152,
+      "sha256": "7afc2b97fd43750dde2271845b80203e1a5a3b46c897cad366a90722bcbdf1d0"
+    },
+    "attachments/C/verification/01-发现物品.png": {
+      "bytes": 74140,
+      "sha256": "dcef332c9cc8bbdc5f7084fdb1e4b5d47c461a9cd2a398d80ddc1c695af319f0"
+    },
+    "attachments/C/verification/02-买方确认完成.png": {
+      "bytes": 64948,
+      "sha256": "34feb95a658ac0500c597a1f4415b4c7754909292d22cfe06fc21bd6e421b558"
+    },
+    "attachments/C/verification/03-异常终止.png": {
+      "bytes": 106755,
+      "sha256": "67c9ad0a1bfb4eed69699a73f7645395375a0e6f68e044d5f847bad7f5600fce"
+    },
+    "attachments/C/verification/04-手机宽度.png": {
+      "bytes": 61068,
+      "sha256": "e58808ddd079c2722daf2614ea793e1d58ccbf149c922c4c446596706993b1fb"
+    },
+    "attachments/C/verification/browser-failure.png": {
+      "bytes": 69781,
+      "sha256": "c0d817173df5e76177c5fafa6acb042b1c6168572a15c8f1d9efc8fadb1aa4db"
+    },
+    "attachments/C/verification/revision-20261022/01-发现物品.png": {
+      "bytes": 74140,
+      "sha256": "dcef332c9cc8bbdc5f7084fdb1e4b5d47c461a9cd2a398d80ddc1c695af319f0"
+    },
+    "attachments/C/verification/revision-20261022/02-买方确认完成.png": {
+      "bytes": 64953,
+      "sha256": "73f00d26f2d07da252c9a590781b4eab730435cf19638da98f75c6e9de7c4655"
+    },
+    "attachments/C/verification/revision-20261022/03-异常终止.png": {
+      "bytes": 106733,
+      "sha256": "c10f08181cb6e68f80391e3075ef52c8306c60080071e86981186c88f8067c84"
+    },
+    "attachments/C/verification/revision-20261022/04-手机宽度.png": {
+      "bytes": 61068,
+      "sha256": "e58808ddd079c2722daf2614ea793e1d58ccbf149c922c4c446596706993b1fb"
+    },
+    "attachments/C/verification/revision-20261022/05-未登记异常终止-待交付.png": {
+      "bytes": 106161,
+      "sha256": "8dd29b5c89df7fc0867990cd7f4fecfee0c8a2ef481b53ceaea21494959365b9"
+    },
+    "attachments/C/verification/revision-20261022/05-未登记异常终止-待卖方确认.png": {
+      "bytes": 106298,
+      "sha256": "c217d71dad8f0682a9558468f6902f1dc911674c6e9edc875794609a659b687a"
+    },
+    "attachments/C/verification/revision-20261022/05-未登记异常终止-报告交付但未登记.png": {
+      "bytes": 106178,
+      "sha256": "c70211b41120cc5b49133f0331e5813d1ef54798ae837136403df9cc5a985fb4"
+    },
+    "attachments/C/verification/revision-20261022/browser-check.cjs.before": {
+      "bytes": 6705,
+      "sha256": "1c4478f46ba69e394ca0144884c19f3e0def80b27deca39f52c96ba4de481d5f"
+    },
+    "attachments/C/verification/revision-20261022/browser-failure.png": {
+      "bytes": 106797,
+      "sha256": "625f2fbe8a612ee64017d6d2b46d7b5f27a24b07f12ce10ad7066dc13dd1a7a1"
+    },
+    "attachments/C/verification/revision-20261022/ui.js.before": {
+      "bytes": 10679,
+      "sha256": "9b6cfc03b569836dd92beaf06ca8120251dd4e954368e5622cc33c354c6c297d"
+    },
+    "attachments/C/verification/revision-20261022/verify.cjs.before": {
+      "bytes": 13646,
+      "sha256": "c5664a7527c185d5fc73b39839635e4c6c89620c204979b036cd06e781ab3763"
+    },
+    "attachments/C/verification/revision-20261022/交付检查结果.json": {
+      "bytes": 450,
+      "sha256": "b720041b003ec989c1d092becc31852c5ca3e9991ca9229a57e912555372edb6"
+    },
+    "attachments/C/verification/revision-20261022/文件版本清单-修正前.json": {
+      "bytes": 14941,
+      "sha256": "156598a4c8752a0a18883809c14619f01d91aa53f0498184ebb92c018b4c83a5"
+    },
+    "attachments/C/verification/revision-20261022/未登记异常终止-修正前.png": {
+      "bytes": 106797,
+      "sha256": "625f2fbe8a612ee64017d6d2b46d7b5f27a24b07f12ce10ad7066dc13dd1a7a1"
+    },
+    "attachments/C/verification/revision-20261022/程序验证结果.json": {
+      "bytes": 189135,
+      "sha256": "66435659a7acb5525cb6936a6ae99929a0b3aaddc65ba5e8ad7425c5e961f927"
+    },
+    "attachments/C/verification/revision-20261022/脚本复现检查.json": {
+      "bytes": 2669,
+      "sha256": "ca89ec579415501d45a4dd3eef9a536bd4d1654066c40b35971aef358db867c4"
+    },
+    "attachments/C/verification/revision-20261022/页面导出记录.json": {
+      "bytes": 7269,
+      "sha256": "2fb8ff6e35a2a11b42ee457d11faf8094ac0c92e917c3f17951bd76ac04f83bc"
+    },
+    "attachments/C/verification/revision-20261022/页面验证结果-修正前.json": {
+      "bytes": 1407,
+      "sha256": "60d0476db0fe3a1fbdf647cd8950b451fd7cbc8138374797a9071feed7545a56"
+    },
+    "attachments/C/verification/revision-20261022/页面验证结果.json": {
+      "bytes": 1365,
+      "sha256": "ff511652ee27643f89c679164d8b0c5c4fdcfde9734d8a9014a4204605a18800"
+    },
+    "attachments/C/verification/交付检查结果.json": {
+      "bytes": 874,
+      "sha256": "051aeefaf3e6ed907c49276042a1647e3c06e4fd42a5c8cdbfed7f36da391065"
+    },
+    "attachments/C/verification/程序验证结果.json": {
+      "bytes": 188712,
+      "sha256": "378a185cba32c55e40ed3b1c5cbbc8149280733c09ebc2988139711caad474b7"
+    },
+    "attachments/C/verification/页面导出记录.json": {
+      "bytes": 7267,
+      "sha256": "98c8aa742b5c2bf48883f6ec0f88a7c6b986c0f8739c353b3d7b4ba8b78c1492"
+    },
+    "attachments/C/verification/页面验证结果-首次.json": {
+      "bytes": 406,
+      "sha256": "a15db47d9a4f0086d6fab0d8457ad4026171e42c0621fb79e780721e24129d24"
+    },
+    "attachments/C/verification/页面验证结果.json": {
+      "bytes": 945,
+      "sha256": "0bdeeb8fd44d5187988c4695d24cb348ba6b3810871c86265d8efcebf2adfc20"
+    },
+    "attachments/C/verification/首次检查截图.png": {
+      "bytes": 69781,
+      "sha256": "c0d817173df5e76177c5fafa6acb042b1c6168572a15c8f1d9efc8fadb1aa4db"
+    },
+    "attachments/C/修订说明与审核交接.md": {
+      "bytes": 2825,
+      "sha256": "786f9ea352645e2459b415082ab372ecc6c57af4480c8613ae2d932d5153d78c"
+    },
+    "attachments/C/关键AI交互与人工决定.md": {
+      "bytes": 4088,
+      "sha256": "19e2519b22cfe710fbe5416ef9d6070735864405bdb8a1f8bfdbd00181bbbd8d"
+    },
+    "attachments/C/原型范围与运行说明.md": {
+      "bytes": 4088,
+      "sha256": "1b0fdfcf50ff53efa636ea104ca9e4e6168a17f818a51a702abce638fd8e9459"
+    },
+    "attachments/C/原型验证记录.md": {
+      "bytes": 8183,
+      "sha256": "6cfd1a318bfddf21bf65bc53a1829a83343349b79fb354da9b1b585fd31cd104"
+    },
+    "attachments/C/场景数据与走查脚本.md": {
+      "bytes": 45573,
+      "sha256": "6062d29b66d1dd1cc4f5e185d422dcfd7f403b3293dfd2804e9d64728f657a6a"
+    },
+    "attachments/C/自查记录.md": {
+      "bytes": 2795,
+      "sha256": "1898c8d5241852683561512d5a1dd71ecae3bd30aa3587278541ff0df630d79d"
+    },
+    "attachments/C/输入版本.json": {
+      "bytes": 6982,
+      "sha256": "39409dbc2376d703d00dcc8e6116aee3cf6930f685f263ab862aad93b7ccb9c8"
+    },
+    "attachments/C/问题清单与复验.md": {
+      "bytes": 3864,
+      "sha256": "2bac3e8440d70243e4e5675d07a59727222bb18979ef416909da4cecf1d303ac"
+    },
+    "attachments/C/附件索引.md": {
+      "bytes": 3593,
+      "sha256": "7f836d72723587afba3a4ddabb0a30287fcee2c39599d6ca86e6109445aaaea0"
+    },
+    "attachments/交付清单.md": {
+      "bytes": 3279,
+      "sha256": "19622af3021d94c496ae43343da9c17052fa95791a0bdd8120f36e0e43683f64"
+    },
+    "attachments/总证据索引.md": {
+      "bytes": 8841,
+      "sha256": "0258176817967d6b333dac53d3191148c431ad2114ffaaf1fc56ccb569034b02"
+    },
+    "documents/.gitkeep": {
+      "bytes": 0,
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    "documents/校园二手交易与物品流转平台需求规格说明书.docx": {
+      "bytes": 1734576,
+      "sha256": "5801d094fcd89ce15b129860fb7381625cb4c8d4d653123b30e4f2fe2f28e34f"
+    },
+    "documents/校园二手交易与物品流转平台需求规格说明书.md": {
+      "bytes": 65019,
+      "sha256": "bf649e7d6680ec29a07add668a6571cdc6bd4f2ab349bdc68ea80d81b5d71d68"
+    },
+    "documents/校园二手交易与物品流转平台需求规格说明书.pdf": {
+      "bytes": 1785288,
+      "sha256": "f31d9a4650ef209882e98d76fb85034955b29c4424fe5108989c1f2dc0df6d63"
+    },
+    "documents/需求分析质量验证报告.docx": {
+      "bytes": 1595986,
+      "sha256": "33026253a62106c2ff128e65cbd0c33043b5e2c6138318349f8236ae8e71954f"
+    },
+    "documents/需求分析质量验证报告.md": {
+      "bytes": 7285,
+      "sha256": "63075206c302a3dc2cb481803e591ec7c265343de8ec429ec2eb90f7087282cd"
+    },
+    "documents/需求分析质量验证报告.pdf": {
+      "bytes": 152145,
+      "sha256": "6305894a8db7fc35b979e843a42465b035942967eb853e946d86b856e03baf01"
+    },
+    "initialization/docs/提交要求对照.md": {
+      "bytes": 12757,
+      "sha256": "a479d85de2aaaa5d7e5048aaece624b6d4715ac209dee625f1394daae907a080"
+    },
+    "initialization/docs/文档格式规范.md": {
+      "bytes": 3463,
+      "sha256": "c93babb85f4aced57c154136308e493d43c6126256ed2bd58c05a92c80038989"
+    },
+    "initialization/skills/README.md": {
+      "bytes": 1883,
+      "sha256": "e36a3bd155793693f581ee83bce203b09010dd022f54a1c6018538a37c457afc"
+    },
+    "initialization/skills/req-a-spec/SKILL.md": {
+      "bytes": 5936,
+      "sha256": "f8e3298ecc595c65f0977c76a9e1d28b7dcaf659364324c919cd221dbf7b88a0"
+    },
+    "initialization/skills/req-b-model/SKILL.md": {
+      "bytes": 5533,
+      "sha256": "19c0157510148ee4ac040028fefe1d91540cbb4de41c284d883a4e9096ecf13a"
+    },
+    "initialization/skills/req-c-prototype/SKILL.md": {
+      "bytes": 7399,
+      "sha256": "f4152b9c8668ecebe4228454f94e3022d6514285065eb264aac212edd686a277"
+    },
+    "initialization/skills/req-d-verify/SKILL.md": {
+      "bytes": 6647,
+      "sha256": "5a41eb3c05179cc3db3dcdad3a6bf8cb5eecbb7ed28f7f990e3081e9f7f8c31a"
+    },
+    "initialization/skills/共同大纲.md": {
+      "bytes": 28606,
+      "sha256": "e10ece86e5c87efe3143c4b73dd4c8c5f13db4d20c794667b7f4af8876ed346b"
+    },
+    "initialization/skills/协作协议.md": {
+      "bytes": 12596,
+      "sha256": "9a9f20381ea91de3120113fffb401e48534472342ffae0c7a6fa5e5307061b69"
+    }
+  }
+}

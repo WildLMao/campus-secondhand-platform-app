@@ -1,0 +1,321 @@
+{
+  "version": "C-prototype-v1.1",
+  "exportedAt": "2026-10-22T10:09:14.337Z",
+  "scope": "仅本地模拟；导出不自动构成人工走查或独立复核",
+  "items": [
+    {
+      "id": "I01",
+      "title": "软件工程教材",
+      "category": "教材",
+      "description": "模拟物品：教材一本，附课程笔记。",
+      "price": 35,
+      "seller": "seller",
+      "state": "已成交",
+      "approved": true,
+      "hidden": false,
+      "occupation": null
+    }
+  ],
+  "orders": [
+    {
+      "id": "O001",
+      "buyer": "buyer",
+      "seller": "seller",
+      "itemId": "I01",
+      "state": "已完成",
+      "snapshot": {
+        "title": "软件工程教材",
+        "description": "模拟物品：教材一本，附课程笔记。",
+        "price": 35,
+        "buyer": "buyer",
+        "seller": "seller"
+      },
+      "registered": true,
+      "disputed": false,
+      "disputeStage": null,
+      "actualDeliveryReported": true,
+      "chatReadOnly": true,
+      "messages": [
+        {
+          "actor": "seller",
+          "text": "模拟旧单交接沟通"
+        }
+      ],
+      "reminded": false,
+      "history": [
+        {
+          "type": "登记",
+          "actor": "seller",
+          "reason": "模拟旧单交付"
+        },
+        {
+          "type": "收货确认",
+          "actor": "buyer"
+        }
+      ]
+    }
+  ],
+  "users": {
+    "buyer": {
+      "name": "买方甲",
+      "verified": true,
+      "restricted": false
+    },
+    "buyer2": {
+      "name": "买方乙",
+      "verified": true,
+      "restricted": false
+    },
+    "seller": {
+      "name": "卖方",
+      "verified": true,
+      "restricted": true
+    },
+    "admin": {
+      "name": "管理员",
+      "admin": true,
+      "verified": true,
+      "restricted": false
+    },
+    "guest": {
+      "name": "访问者",
+      "verified": false,
+      "restricted": false
+    },
+    "unverified": {
+      "name": "未认证用户",
+      "verified": false,
+      "restricted": false
+    }
+  },
+  "notifications": [
+    {
+      "orderId": "O001",
+      "kind": "建立订单",
+      "status": "发送失败"
+    },
+    {
+      "orderId": "O001",
+      "kind": "accept",
+      "status": "发送失败"
+    },
+    {
+      "orderId": "O001",
+      "kind": "交付登记",
+      "status": "发送失败"
+    },
+    {
+      "orderId": "O001",
+      "kind": "完成",
+      "status": "发送失败"
+    }
+  ],
+  "reports": [],
+  "receipts": {
+    "buyer|C-001": {
+      "fingerprint": "place|I01|{}",
+      "status": "done",
+      "actor": "buyer",
+      "op": "place",
+      "target": "I01",
+      "data": {},
+      "result": {
+        "ok": true,
+        "code": "OK",
+        "message": "订单与预占同时建立。",
+        "orderId": "O001",
+        "st": [
+          "ST-B-08",
+          "ST-B-13"
+        ]
+      }
+    },
+    "admin|C-003": {
+      "fingerprint": "restrict|seller|{\"reason\":\"模拟账户限制\",\"restricted\":true}",
+      "status": "done",
+      "actor": "admin",
+      "op": "restrict",
+      "target": "seller",
+      "data": {
+        "reason": "模拟账户限制",
+        "restricted": true
+      },
+      "result": {
+        "ok": true,
+        "code": "OK",
+        "message": "已更新账户限制；旧订单阶段保持。"
+      }
+    },
+    "seller|C-005": {
+      "fingerprint": "accept|O001|{}",
+      "status": "done",
+      "actor": "seller",
+      "op": "accept",
+      "target": "O001",
+      "data": {},
+      "result": {
+        "ok": true,
+        "code": "OK",
+        "message": "卖方已接单，等待线下交付。",
+        "orderId": "O001",
+        "st": [
+          "ST-B-14"
+        ]
+      }
+    },
+    "seller|C-006": {
+      "fingerprint": "message|O001|{\"text\":\"模拟旧单交接沟通\"}",
+      "status": "done",
+      "actor": "seller",
+      "op": "message",
+      "target": "O001",
+      "data": {
+        "text": "模拟旧单交接沟通"
+      },
+      "result": {
+        "ok": true,
+        "code": "OK",
+        "message": "已记录旧单沟通；订单阶段保持。",
+        "orderId": "O001"
+      }
+    },
+    "seller|C-007": {
+      "fingerprint": "register|O001|{\"delivered\":true,\"reason\":\"模拟旧单交付\"}",
+      "status": "done",
+      "actor": "seller",
+      "op": "register",
+      "target": "O001",
+      "data": {
+        "reason": "模拟旧单交付",
+        "delivered": true
+      },
+      "result": {
+        "ok": true,
+        "code": "OK",
+        "message": "已登记交付，等待买方确认；尚未计入成交。",
+        "orderId": "O001",
+        "st": [
+          "ST-B-17"
+        ]
+      }
+    },
+    "buyer|C-009": {
+      "fingerprint": "confirm|O001|{\"received\":true}",
+      "status": "done",
+      "actor": "buyer",
+      "op": "confirm",
+      "target": "O001",
+      "data": {
+        "received": true
+      },
+      "result": {
+        "ok": true,
+        "code": "OK",
+        "message": "买方本人确认，订单完成与物品成交同时成立。",
+        "orderId": "O001",
+        "st": [
+          "ST-B-19",
+          "ST-B-10"
+        ]
+      }
+    }
+  },
+  "logs": [
+    {
+      "no": 1,
+      "time": "2026-10-22T10:09:13.769Z",
+      "actor": "buyer",
+      "op": "place",
+      "target": "I01",
+      "result": {
+        "ok": true,
+        "code": "OK",
+        "message": "订单与预占同时建立。",
+        "orderId": "O001",
+        "st": [
+          "ST-B-08",
+          "ST-B-13"
+        ]
+      }
+    },
+    {
+      "no": 2,
+      "time": "2026-10-22T10:09:13.869Z",
+      "actor": "admin",
+      "op": "restrict",
+      "target": "seller",
+      "result": {
+        "ok": true,
+        "code": "OK",
+        "message": "已更新账户限制；旧订单阶段保持。"
+      }
+    },
+    {
+      "no": 3,
+      "time": "2026-10-22T10:09:13.970Z",
+      "actor": "seller",
+      "op": "accept",
+      "target": "O001",
+      "result": {
+        "ok": true,
+        "code": "OK",
+        "message": "卖方已接单，等待线下交付。",
+        "orderId": "O001",
+        "st": [
+          "ST-B-14"
+        ]
+      }
+    },
+    {
+      "no": 4,
+      "time": "2026-10-22T10:09:14.036Z",
+      "actor": "seller",
+      "op": "message",
+      "target": "O001",
+      "result": {
+        "ok": true,
+        "code": "OK",
+        "message": "已记录旧单沟通；订单阶段保持。",
+        "orderId": "O001"
+      }
+    },
+    {
+      "no": 5,
+      "time": "2026-10-22T10:09:14.137Z",
+      "actor": "seller",
+      "op": "register",
+      "target": "O001",
+      "result": {
+        "ok": true,
+        "code": "OK",
+        "message": "已登记交付，等待买方确认；尚未计入成交。",
+        "orderId": "O001",
+        "st": [
+          "ST-B-17"
+        ]
+      }
+    },
+    {
+      "no": 6,
+      "time": "2026-10-22T10:09:14.237Z",
+      "actor": "buyer",
+      "op": "confirm",
+      "target": "O001",
+      "result": {
+        "ok": true,
+        "code": "OK",
+        "message": "买方本人确认，订单完成与物品成交同时成立。",
+        "orderId": "O001",
+        "st": [
+          "ST-B-19",
+          "ST-B-10"
+        ]
+      }
+    }
+  ],
+  "summary": {
+    "completed": 1,
+    "amount": 35,
+    "active": 0
+  }
+}

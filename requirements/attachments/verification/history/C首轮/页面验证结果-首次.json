@@ -1,0 +1,13 @@
+{
+  "date": "2026-10-21T13:05:02.604Z",
+  "browser": "131.0.2903.112",
+  "scope": "agent无窗口浏览器实际点击；未代替学生人工走查或真实后台验证",
+  "checks": [
+    {
+      "name": "UI-C-01 正常下单与核心闭环（SC-C-01）",
+      "status": "失败",
+      "error": "The input did not match the regular expression /完成 0 笔/. Input:\n\n''\n"
+    }
+  ],
+  "errors": []
+}
