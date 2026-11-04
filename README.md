@@ -24,6 +24,7 @@
 │  ├─ backend/                     Java 后端、SQL、配置与集成测试
 │  │  └─ target/campus-market-1.0.0.jar  已构建可执行版本
 │  ├─ Dockerfile、compose.yml       容器构建和 MySQL 部署配置
+│  ├─ docs/                        接口契约、数据库说明与角色交接
 │  └─ 启动项目.cmd、build.ps1 等     本地启动和源码构建
 ├─ requirements/                   原正式需求提交包，完整保留相对引用
 │  ├─ documents/                   三份正式报告的 MD、DOCX、PDF
@@ -59,19 +60,19 @@
 
 ## 试运行参考前后端
 
-需要 Java 17 或更高版本。设置 `JAVA_HOME` 或将 Java 加入 PATH，进入 `reference-app/` 双击 `启动项目.cmd`；已有 JAR，无须为首次试运行安装 Node/Maven。也可在 `reference-app/backend/` 执行：
+需要 Java 17 或更高版本，以及可用的 MySQL 8.4（建库与账号见 `reference-app/docs/database/mysql.md`）。设置 `JAVA_HOME` 或将 Java 加入 PATH，进入 `reference-app/` 双击 `启动项目.cmd`；已有 JAR，无须为首次试运行安装 Node/Maven。也可在 `reference-app/backend/` 执行：
 
 ```sh
 java -Dfile.encoding=UTF-8 -jar target/campus-market-1.0.0.jar
 ```
 
-访问 `http://127.0.0.1:18080/`。首次启动在当前后端工作目录创建文件数据库与上传目录，不依赖原电脑的演示数据库。
+访问 `http://127.0.0.1:18080/`。应用只使用 MySQL：`DB_URL`（或 `DB_HOST`/`DB_PORT`/`DB_NAME`）、`DB_USER`、`DB_PASSWORD` 需指向已建好的 `campus` 库；连接失败会直接启动失败，不提供其他数据库回退，`启动项目.cmd` 也不会切换到别的数据库。健康检查 `GET /api/health` 的 `database` 应为 `MySQL`。
 
-本地演示账号为 `buyer`、`buyer2`、`seller`、`admin`，演示密码均为 `Campus123!`。这些账号仅供本地检查；A/B 负责在公网交付前关闭演示种子并提供正式管理员初始化。
+本地演示账号为 `buyer`、`buyer2`、`seller`、`admin`，演示密码均为 `Campus123!`。这些账号仅在 MySQL 空库且以 `DEMO_SEED=true` 启动时生成，仅供本地检查；交付环境保持 `DEMO_SEED=false`，由 `BOOTSTRAP_ADMIN_*` 创建正式管理员。
 
 修改源码后的构建需要 JDK 17、Maven 和 Node.js 20.19+，Windows 在 `reference-app/` 执行 `build.ps1`。其他系统按 `reference-app/README.md` 或 Dockerfile 构建。包内启动/构建脚本已去除原电脑固定的 Java、Maven 和 Codex 运行时路径。
 
-默认仍为 H2；MySQL 8.4 配置已随代码提供，B 负责切换并在真实 MySQL 验证，A 负责目标服务器部署。当前 JAR 与历史 H2 测试不代表 MySQL、公网、并发容量或恢复验收已通过。
+数据库只使用 MySQL 8.4：启动时按 `backend/src/main/resources/db/migration/` 的版本化脚本初始化/升级，关闭演示种子时按 `BOOTSTRAP_ADMIN_*` 创建初始管理员；本地演示与交付使用同一套 MySQL 配置，没有 H2 运行方式（`h2` 仅作为自动化测试的 test-scope 依赖，不进入 JAR）。接口契约在 `reference-app/docs/api/`，数据库说明在 `reference-app/docs/database/`，本轮交接在 `reference-app/docs/handoffs/`。真实 MySQL、公网、并发容量与恢复验收仍需 A/B 在目标环境执行，当前 JAR 与自动化测试结果不代表这些环境已通过。
 
 ## 发给智能体的任务入口
 

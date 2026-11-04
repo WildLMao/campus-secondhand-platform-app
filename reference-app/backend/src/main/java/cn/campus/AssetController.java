@@ -17,14 +17,14 @@ import org.springframework.web.multipart.MultipartFile;
 public class AssetController {
     final Store db;
     final MarketService service;
-    final ApiController api;
+    final SessionSupport session;
     final Path root;
 
-    AssetController(Store db, MarketService service, ApiController api, @Value("${app.upload-dir}") String dir)
+    AssetController(Store db, MarketService service, SessionSupport session, @Value("${app.upload-dir}") String dir)
             throws IOException {
         this.db = db;
         this.service = service;
-        this.api = api;
+        this.session = session;
         this.root = Path.of(dir).toAbsolutePath().normalize();
         Files.createDirectories(root);
     }
@@ -32,7 +32,7 @@ public class AssetController {
     @PostMapping
     Object upload(@RequestParam MultipartFile file, @RequestParam String kind, HttpServletRequest req)
             throws IOException {
-        String uid = api.uid(req);
+        String uid = session.uid(req);
         require(Set.of("ITEM", "VERIFY").contains(kind), "图片用途无效。");
         if (kind.equals("ITEM"))
             service.eligible(uid);
@@ -80,7 +80,7 @@ public class AssetController {
                     "select i.id from items i join accounts a on a.id=i.seller_id where i.image_id=#{p.id} and i.status='在售' and i.hidden=0 and a.restricted=0 and not exists(select 1 from reservations r where r.item_id=i.id)",
                     p("id", id)) != null;
         if (!visible) {
-            String uid = api.uid(req);
+            String uid = session.uid(req);
             visible = uid.equals(s(a, "owner_id"));
             if (!visible && s(service.account(uid), "role").equals("ADMIN")) {
                 service.audit(uid, "查看审核图片", id, "审核治理");

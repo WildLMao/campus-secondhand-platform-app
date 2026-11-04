@@ -1,6 +1,11 @@
 services:
   mysql:
     image: mysql:8.4
+    # 字符集与排序规则在库级别固定为 utf8mb4 / utf8mb4_0900_ai_ci，时间由应用保存为 UTC。
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+      - --default-time-zone=+00:00
     environment:
       MYSQL_DATABASE: campus
       MYSQL_USER: campus
@@ -9,23 +14,37 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost --silent"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p\"$$MYSQL_ROOT_PASSWORD\" --silent"]
       interval: 5s
       timeout: 5s
       retries: 30
+    restart: unless-stopped
   app:
     build: .
     ports: ["127.0.0.1:18080:18080"]
     environment:
-      DB_URL: jdbc:mysql://mysql:3306/campus?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&useSSL=false
+      DB_URL: jdbc:mysql://mysql:3306/campus?useUnicode=true&characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true&useSSL=false
       DB_USER: campus
       DB_PASSWORD: ${DB_PASSWORD}
-      DEMO_SEED: ${DEMO_SEED:-true}
+      # 交付环境不启用演示种子，初始管理员由 BOOTSTRAP_ADMIN_* 创建。
+      DEMO_SEED: ${DEMO_SEED:-false}
+      BOOTSTRAP_ADMIN_USERNAME: ${BOOTSTRAP_ADMIN_USERNAME:?Set BOOTSTRAP_ADMIN_USERNAME in .env}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Set BOOTSTRAP_ADMIN_PASSWORD in .env}
+      BOOTSTRAP_ADMIN_NICKNAME: ${BOOTSTRAP_ADMIN_NICKNAME:-校园管理员}
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
     depends_on:
       mysql:
         condition: service_healthy
     volumes:
       - uploads:/app/data/uploads
+    healthcheck:
+      test: ["CMD", "bash", "-c", "exec 3<>/dev/tcp/127.0.0.1/18080 && printf 'GET /api/health HTTP/1.0\\r\\n\\r\\n' >&3 && head -n 1 <&3 | grep -q 200"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 40s
+    restart: unless-stopped
 volumes:
   mysql-data:
   uploads:
+

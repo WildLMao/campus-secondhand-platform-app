@@ -47,6 +47,26 @@ public class MarketService {
         return v;
     }
 
+    /** 允许为空的可选文本；超长直接拒绝，避免 MySQL 严格模式下的截断或写入失败。 */
+    static String optional(Map<String, Object> b, String k, int max) {
+        String v = s(b, k).trim();
+        if (v.length() > max)
+            throw new ApiError(k + " 不能超过 " + max + " 字。");
+        return v;
+    }
+
+    /** 争议与举报证据写入 TEXT，按 UTF-8 字节数限制，防止超过列容量。 */
+    static String evidence(Map<String, Object> b, String k) {
+        String v = optional(b, k, 5000);
+        require(v.getBytes(StandardCharsets.UTF_8).length <= 60000, k + " 内容过长，请精简后重试。");
+        return v;
+    }
+
+    /** 写入短说明列时按列宽截断，保留用户输入主体的同时避免数据库报错。 */
+    static String clip(String v, int max) {
+        return v == null || v.length() <= max ? v : v.substring(0, max);
+    }
+
     static void require(boolean ok, String message) {
         if (!ok)
             throw new ApiError(message);
@@ -121,7 +141,7 @@ public class MarketService {
 
     void notify(String uid, String content) {
         db.exec("insert into notifications(id,user_id,content,created_at) values(#{p.id},#{p.u},#{p.c},#{p.t})",
-                p("id", id(), "u", uid, "c", content, "t", now()));
+                p("id", id(), "u", uid, "c", clip(content, 1000), "t", now()));
     }
 
     @Transactional
@@ -289,7 +309,7 @@ public class MarketService {
 
     void transition(String uid, Map<String, Object> o, String stage, String reason) {
         String oid = s(o, "id"), iid = s(o, "item_id");
-        db.exec("update orders set stage=#{p.s},reason=#{p.r},completed_at=#{p.t} where id=#{p.id}",
+        db.exec("update orders set stage=#{p.s},reason=#{p.r},completed_at=#{p.t,jdbcType=VARCHAR} where id=#{p.id}",
                 p("s", stage, "r", reason, "t", stage.equals("已完成") ? now() : null, "id", oid));
         if (!ACTIVE.contains(stage)) {
             db.exec("delete from reservations where item_id=#{p.i} and order_id=#{p.o}", p("i", iid, "o", oid));
@@ -410,7 +430,8 @@ public class MarketService {
         require(ACTIVE.contains(s(o, "stage")), "订单已结束，请使用一般举报。");
         require(n(o, "disputed") == 0, "已有处理中争议，请在原申请补证。");
         db.exec("insert into disputes(id,order_id,author_id,reason,evidence,status,created_at) values(#{p.id},#{p.o},#{p.u},#{p.r},#{p.e},'处理中',#{p.t})",
-                p("id", id(), "o", oid, "u", uid, "r", text(b, "reason", 1500), "e", s(b, "evidence"), "t", now()));
+                p("id", id(), "o", oid, "u", uid, "r", text(b, "reason", 1500), "e", evidence(b, "evidence"), "t",
+                        now()));
         db.exec("update orders set disputed=1 where id=#{p.id}", p("id", oid));
         audit(uid, "申请履约争议", oid, s(b, "reason"));
     }
@@ -427,8 +448,10 @@ public class MarketService {
         require(d != null, "争议不存在。");
         lockOrder(uid, s(d, "order_id"), false);
         require(s(d, "status").equals("处理中"), "争议已结案，后续反馈请举报。");
-        db.exec("update disputes set evidence=#{p.e} where id=#{p.id}", p("id", did, "e", s(d, "evidence") + "\n["
-                + now() + " / " + s(account(uid), "nickname") + "] " + text(b, "evidence", 1500)));
+        String combined = s(d, "evidence") + "\n[" + now() + " / " + s(account(uid), "nickname") + "] "
+                + text(b, "evidence", 1500);
+        require(combined.getBytes(StandardCharsets.UTF_8).length <= 60000, "补证内容过长，请合并说明后重试。");
+        db.exec("update disputes set evidence=#{p.e} where id=#{p.id}", p("id", did, "e", combined));
         audit(uid, "争议补证", did, "");
     }
 
@@ -449,8 +472,8 @@ public class MarketService {
         else
             throw new ApiError("举报对象类型无效。");
         db.exec("insert into reports(id,author_id,object_type,object_id,reason,evidence,status,created_at) values(#{p.id},#{p.u},#{p.ty},#{p.o},#{p.r},#{p.e},'待处理',#{p.t})",
-                p("id", id(), "u", uid, "ty", type, "o", obj, "r", text(b, "reason", 1500), "e", s(b, "evidence"), "t",
-                        now()));
+                p("id", id(), "u", uid, "ty", type, "o", obj, "r", text(b, "reason", 1500), "e", evidence(b, "evidence"),
+                        "t", now()));
         audit(uid, "提交举报", obj, s(b, "reason"));
     }
 
@@ -585,8 +608,8 @@ public class MarketService {
                     db.exec("update accounts set verified=1 where id=#{p.id}", p("id", v.get("user_id")));
                 }
                 db.exec("update verifications set status=#{p.s},reason=#{p.r} where id=#{p.id}",
-                        p("s", pass ? "通过" : "退回", "r", reason, "id", obj));
-                notify(s(v, "user_id"), "校园认证" + (pass ? "通过" : "退回：" + reason));
+                        p("s", pass ? "通过" : "退回", "r", clip(reason, 1000), "id", obj));
+                notify(s(v, "user_id"), "校园认证" + (pass ? "通过" : "退回：" + clip(reason, 1000)));
             }
             case "item" -> {
                 var i = item(obj, true);
@@ -594,8 +617,8 @@ public class MarketService {
                 require(s(b, "version").equals(String.valueOf(n(i, "version"))), "审核版本已经变化，请刷新。");
                 boolean pass = Boolean.TRUE.equals(b.get("pass"));
                 db.exec("update items set status=#{p.s},reason=#{p.r} where id=#{p.id}",
-                        p("s", pass ? "在售" : "审核退回", "r", reason, "id", obj));
-                notify(s(i, "seller_id"), "物品审核" + (pass ? "通过" : "退回：" + reason));
+                        p("s", pass ? "在售" : "审核退回", "r", clip(reason, 1000), "id", obj));
+                notify(s(i, "seller_id"), "物品审核" + (pass ? "通过" : "退回：" + clip(reason, 1000)));
             }
             case "hide" -> {
                 item(obj, true);
@@ -636,7 +659,7 @@ public class MarketService {
                 var r = db.one("select * from reports where id=#{p.id} for update", p("id", obj));
                 require(r != null, "举报不存在。");
                 db.exec("update reports set status='已处理',result=#{p.r},event_ref=#{p.e} where id=#{p.id}",
-                        p("r", reason, "e", s(b, "event_ref"), "id", obj));
+                        p("r", reason, "e", optional(b, "event_ref", 100), "id", obj));
                 notify(s(r, "author_id"), "举报处理结果：" + reason);
             }
             case "review" -> {

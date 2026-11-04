@@ -1,0 +1,1289 @@
+openapi: 3.0.3
+info:
+  title: 校园循环 · 后端接口契约
+  version: 1.0.0-2026-10-29
+  description: |
+    校园二手交易与物品流转平台后端接口。所有业务接口位于 /api。
+    身份基于服务端 Session；所有非 GET 请求须带 X-CSRF-Token（由 GET /api/me、注册或登录响应下发）。
+    POST /api/orders 与 POST /api/orders/{id}/{action} 还须带 Idempotency-Key。
+    错误统一为 {"message": "..."}：400 输入或业务条件不满足、401 未登录、403 越权或 CSRF 失败、
+    404 不存在、409 冲突或并发锁冲突、500 未预期异常、503 数据库不可用。
+    时间均为 UTC ISO-8601（Z 结尾），金额为人民币元且保留两位小数。
+    详细说明与业务规则见同目录 README.md。
+servers:
+  - url: /
+security:
+  - sessionCookie: []
+paths:
+  /api/health:
+    get:
+      summary: 运行健康检查
+      security: []
+      responses:
+        '200':
+          description: 应用与数据库可用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Health'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /api/me:
+    get:
+      summary: 当前会话用户与 CSRF 令牌
+      security: []
+      responses:
+        '200':
+          description: 未登录时 user 为 null
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [csrf]
+                properties:
+                  user:
+                    allOf:
+                      - $ref: '#/components/schemas/PublicUser'
+                    nullable: true
+                  csrf:
+                    type: string
+  /api/auth/register:
+    post:
+      summary: 注册账户
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password, nickname]
+              properties:
+                username:
+                  type: string
+                  pattern: '^[A-Za-z0-9_]{3,40}$'
+                password:
+                  type: string
+                  minLength: 8
+                  description: UTF-8 不超过 72 字节
+                nickname:
+                  type: string
+                  maxLength: 30
+      responses:
+        '200':
+          description: 注册并建立会话
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/PublicUser'
+                  csrf:
+                    type: string
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/auth/login:
+    post:
+      summary: 登录
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [username, password]
+              properties:
+                username:
+                  type: string
+                password:
+                  type: string
+      responses:
+        '200':
+          description: 登录成功，会话标识已更换
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  user:
+                    $ref: '#/components/schemas/PublicUser'
+                  csrf:
+                    type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/auth/logout:
+    post:
+      summary: 退出并失效当前会话
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+      responses:
+        '200':
+          description: 已退出
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/items:
+    get:
+      summary: 检索公开可交易物品
+      parameters:
+        - name: q
+          in: query
+          schema:
+            type: string
+            maxLength: 120
+        - name: category
+          in: query
+          schema:
+            $ref: '#/components/schemas/Category'
+        - name: page
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+      responses:
+        '200':
+          description: 每页 20 条
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Item'
+    post:
+      summary: 发布物品（进入待审）
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemInput'
+      responses:
+        '200':
+          description: 新建物品
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/items/mine:
+    get:
+      summary: 本人发布的物品（含历史状态）
+      responses:
+        '200':
+          description: 物品列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Item'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/items/{id}:
+    put:
+      summary: 修改本人可修改物品（版本 +1 并重新审核）
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ItemInput'
+      responses:
+        '200':
+          description: 更新后的物品
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Item'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/items/{id}/withdraw:
+    post:
+      summary: 撤下本人无有效订单的物品
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Csrf'
+      responses:
+        '200':
+          description: 已撤下
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/verifications:
+    get:
+      summary: 本人认证申请历史
+      responses:
+        '200':
+          description: 认证记录
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Verification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: 提交校园认证
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_no, real_name, asset_id]
+              properties:
+                student_no:
+                  type: string
+                  maxLength: 50
+                real_name:
+                  type: string
+                  maxLength: 50
+                asset_id:
+                  type: string
+                  description: 本人上传的 VERIFY 类型图片
+      responses:
+        '200':
+          description: 已提交
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/favorites:
+    get:
+      summary: 本人收藏
+      responses:
+        '200':
+          description: 收藏物品摘要
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    title:
+                      type: string
+                    price:
+                      type: number
+                    status:
+                      type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/favorites/{id}:
+    post:
+      summary: 切换物品收藏状态
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Csrf'
+      responses:
+        '200':
+          description: 已切换
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/sellers/{id}/reviews:
+    get:
+      summary: 卖方已公开评价
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: 公开评价
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    score:
+                      type: integer
+                    content:
+                      type: string
+                    created_at:
+                      $ref: '#/components/schemas/Time'
+                    nickname:
+                      type: string
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/orders:
+    get:
+      summary: 本人作为买方或卖方的订单
+      responses:
+        '200':
+          description: 订单列表（按下单时间倒序）
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: 下单并唯一预占物品
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [item_id, version]
+              properties:
+                item_id:
+                  type: string
+                version:
+                  type: integer
+                  description: 下单前看到的物品版本；版本不符拒绝
+      responses:
+        '200':
+          description: 新订单或同一标识的重放结果
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/orders/{id}/{action}:
+    post:
+      summary: 订单阶段操作
+      description: |
+        accept=卖方接单（待卖方确认→待交付）；reject=卖方拒单（→已拒绝，需 reason）；
+        deliver=卖方登记交付（待交付→待买方确认，需 declared=true 与 reason）；
+        confirm=买方本人确认（待买方确认→已完成，需 declared=true）；
+        cancel=当事人普通取消（待卖方确认/待交付，需 declared=true 与 reason，无交付登记、无处理中争议）；
+        remind=卖方在待买方确认阶段提醒一次。
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - name: action
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [accept, reject, deliver, confirm, cancel, remind]
+        - $ref: '#/components/parameters/Csrf'
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  maxLength: 1000
+                declared:
+                  type: boolean
+                  description: 交付、收货或未交付的事实声明
+      responses:
+        '200':
+          description: 操作后的订单当前状态
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/orders/{id}/reviews:
+    get:
+      summary: 该订单的评价（含隐藏标记）
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: 评价列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Review'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: 评价已完成订单
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [score, content]
+              properties:
+                score:
+                  type: integer
+                  minimum: 1
+                  maximum: 5
+                content:
+                  type: string
+                  maxLength: 1000
+      responses:
+        '200':
+          description: 已评价
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+  /api/disputes:
+    get:
+      summary: 本人订单相关的履约争议
+      responses:
+        '200':
+          description: 争议列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Dispute'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/orders/{id}/disputes:
+    post:
+      summary: 对未结束订单申请履约争议
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  maxLength: 1500
+                evidence:
+                  type: string
+                  maxLength: 5000
+      responses:
+        '200':
+          description: 已受理，订单保留原阶段与占用
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/disputes/{id}/evidence:
+    post:
+      summary: 争议补证（未结案）
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [evidence]
+              properties:
+                evidence:
+                  type: string
+                  maxLength: 1500
+      responses:
+        '200':
+          description: 已追加证据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/reports:
+    get:
+      summary: 本人提交的举报
+      responses:
+        '200':
+          description: 举报列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Report'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+    post:
+      summary: 举报物品、订单或账户
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [object_type, object_id, reason]
+              properties:
+                object_type:
+                  type: string
+                  enum: [ITEM, ORDER, ACCOUNT]
+                object_id:
+                  type: string
+                reason:
+                  type: string
+                  maxLength: 1500
+                evidence:
+                  type: string
+                  maxLength: 5000
+      responses:
+        '200':
+          description: 已登记举报回执
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/messages:
+    get:
+      summary: 读取物品咨询或订单会话
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [ITEM, ORDER]
+        - name: object
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: peer
+          in: query
+          schema:
+            type: string
+            description: 物品咨询时指定对方；订单会话自动取另一方
+      responses:
+        '200':
+          description: 消息列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    post:
+      summary: 发送消息
+      parameters:
+        - name: type
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [ITEM, ORDER]
+        - name: object
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: peer
+          in: query
+          schema:
+            type: string
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [content]
+              properties:
+                content:
+                  type: string
+                  maxLength: 1500
+      responses:
+        '200':
+          description: 已发送
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/inbox:
+    get:
+      summary: 本人参与的会话入口
+      responses:
+        '200':
+          description: 会话摘要
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    context_type:
+                      type: string
+                    context_id:
+                      type: string
+                    peer_id:
+                      type: string
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/notifications:
+    get:
+      summary: 最近 100 条站内通知
+      responses:
+        '200':
+          description: 通知列表
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /api/admin/dashboard:
+    get:
+      summary: 管理台审核与治理列表
+      responses:
+        '200':
+          description: 物品、认证、账户、争议、举报、评价与审计记录
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Item'
+                  verifications:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Verification'
+                  accounts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/PublicUser'
+                  disputes:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Dispute'
+                  reports:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Report'
+                  reviews:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Review'
+                  logs:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties: true
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/admin/stats:
+    get:
+      summary: 业务统计（BR18 口径）
+      parameters:
+        - name: from
+          in: query
+          schema:
+            type: string
+            format: date-time
+            description: 完成时间下界（含）
+        - name: to
+          in: query
+          schema:
+            type: string
+            format: date-time
+            description: 完成时间上界（不含）
+      responses:
+        '200':
+          description: 成交笔数与金额、发布数、举报数
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stats'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/admin/{kind}/{id}:
+    post:
+      summary: 治理操作
+      description: kind 见 README 的「管理操作」表；统一必填 reason（≤1500 字）。
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - name: kind
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [verification, item, hide, restrict, relist, dispute, report, review]
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  maxLength: 1500
+                pass:
+                  type: boolean
+                version:
+                  type: integer
+                hidden:
+                  type: boolean
+                restricted:
+                  type: boolean
+                outcome:
+                  type: string
+                  enum: [continue, terminate]
+                evidence_confirmed:
+                  type: boolean
+                event_ref:
+                  type: string
+                  maxLength: 100
+      responses:
+        '200':
+          description: 已执行并留痕
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ok'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /api/assets:
+    post:
+      summary: 上传图片
+      parameters:
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, kind]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: JPEG 或 PNG，最大 5MB，像素不超过 1600 万
+                kind:
+                  type: string
+                  enum: [ITEM, VERIFY]
+      responses:
+        '200':
+          description: 图片标识
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    format: uuid
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+  /api/assets/{id}:
+    get:
+      summary: 读取图片
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: 图片二进制（Cache-Control no-store）
+          content:
+            image/png:
+              schema:
+                type: string
+                format: binary
+            image/jpeg:
+              schema:
+                type: string
+                format: binary
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: JSESSIONID
+      description: HttpOnly、SameSite=Strict；HTTPS 交付时 Secure
+  parameters:
+    Id:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+    Csrf:
+      name: X-CSRF-Token
+      in: header
+      required: true
+      description: 由 GET /api/me、注册或登录响应下发的 csrf；所有非 GET 请求必填
+      schema:
+        type: string
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: '[A-Za-z0-9_-]{8,100}；同一操作者同一标识只成立一次业务结果，重放返回原订单'
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_-]{8,100}$'
+  responses:
+    BadRequest:
+      description: 请求参数或业务条件不满足
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unauthorized:
+      description: 未登录或会话失效
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Forbidden:
+      description: 越权、CSRF 校验失败或当前状态不允许
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: 对象不存在
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Conflict:
+      description: 唯一约束冲突或并发锁冲突，本次未生效
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    Unavailable:
+      description: 数据库不可用
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+  schemas:
+    Time:
+      type: string
+      format: date-time
+      example: '2026-10-29T07:30:00.123Z'
+      description: UTC ISO-8601，以 Z 结尾
+    Money:
+      type: number
+      example: 25.00
+      description: 人民币元，两位小数
+    Error:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+    Ok:
+      type: object
+      properties:
+        ok:
+          type: boolean
+          example: true
+    Health:
+      type: object
+      properties:
+        status:
+          type: string
+          example: UP
+        database:
+          type: string
+          example: MySQL
+        schema:
+          type: string
+          example: V2
+        checkedAt:
+          $ref: '#/components/schemas/Time'
+    Category:
+      type: string
+      enum: [教材书籍, 数码配件, 宿舍生活, 运动户外, 其他]
+    PublicUser:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        nickname:
+          type: string
+        role:
+          type: string
+          enum: [USER, ADMIN]
+        verified:
+          type: integer
+          enum: [0, 1]
+        restricted:
+          type: integer
+          enum: [0, 1]
+    Item:
+      type: object
+      properties:
+        id:
+          type: string
+        seller_id:
+          type: string
+        seller_name:
+          type: string
+          description: 仅公开列表与管理台返回
+        title:
+          type: string
+        category:
+          $ref: '#/components/schemas/Category'
+        description:
+          type: string
+        price:
+          $ref: '#/components/schemas/Money'
+        image_id:
+          type: string
+          nullable: true
+        version:
+          type: integer
+        status:
+          type: string
+          enum: [待审, 在售, 审核退回, 已撤下, 交易中, 已成交, 交易异常终止]
+        hidden:
+          type: integer
+          enum: [0, 1]
+        reason:
+          type: string
+          nullable: true
+        relist_allowed:
+          type: integer
+          enum: [0, 1]
+        created_at:
+          $ref: '#/components/schemas/Time'
+    ItemInput:
+      type: object
+      required: [title, category, description, price, image_id]
+      properties:
+        title:
+          type: string
+          maxLength: 120
+        category:
+          $ref: '#/components/schemas/Category'
+        description:
+          type: string
+          maxLength: 5000
+        price:
+          type: string
+          description: 正数，最多两位小数，最大 9999999999.99
+          example: '25.00'
+        image_id:
+          type: string
+          description: 本人上传的 ITEM 类型图片
+    Order:
+      type: object
+      description: 订单快照与当前阶段；快照不随后续物品修改回写
+      properties:
+        id:
+          type: string
+        item_id:
+          type: string
+        buyer_id:
+          type: string
+        seller_id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        price:
+          $ref: '#/components/schemas/Money'
+        image_id:
+          type: string
+          nullable: true
+        buyer_name:
+          type: string
+        seller_name:
+          type: string
+        item_version:
+          type: integer
+        stage:
+          type: string
+          enum: [待卖方确认, 待交付, 待买方确认, 已完成, 已取消, 已拒绝, 已异常终止]
+        disputed:
+          type: integer
+          enum: [0, 1]
+        reminded:
+          type: integer
+          enum: [0, 1]
+        reason:
+          type: string
+          nullable: true
+        created_at:
+          $ref: '#/components/schemas/Time'
+        completed_at:
+          $ref: '#/components/schemas/Time'
+    Review:
+      type: object
+      properties:
+        id:
+          type: string
+        order_id:
+          type: string
+        author_id:
+          type: string
+        target_id:
+          type: string
+        score:
+          type: integer
+          minimum: 1
+          maximum: 5
+        content:
+          type: string
+        hidden:
+          type: integer
+          enum: [0, 1]
+        created_at:
+          $ref: '#/components/schemas/Time'
+    Dispute:
+      type: object
+      properties:
+        id:
+          type: string
+        order_id:
+          type: string
+        author_id:
+          type: string
+        reason:
+          type: string
+        evidence:
+          type: string
+        status:
+          type: string
+          enum: [处理中, 已结案]
+        outcome:
+          type: string
+          nullable: true
+          enum: [继续履约, 异常终止, 买方确认完成]
+        decision:
+          type: string
+          nullable: true
+        created_at:
+          $ref: '#/components/schemas/Time'
+    Report:
+      type: object
+      properties:
+        id:
+          type: string
+        author_id:
+          type: string
+        object_type:
+          type: string
+          enum: [ITEM, ORDER, ACCOUNT]
+        object_id:
+          type: string
+        reason:
+          type: string
+        evidence:
+          type: string
+        status:
+          type: string
+          enum: [待处理, 已处理]
+        result:
+          type: string
+          nullable: true
+        event_ref:
+          type: string
+          nullable: true
+        created_at:
+          $ref: '#/components/schemas/Time'
+    Message:
+      type: object
+      properties:
+        id:
+          type: string
+        context_type:
+          type: string
+          enum: [ITEM, ORDER]
+        context_id:
+          type: string
+        sender_id:
+          type: string
+        receiver_id:
+          type: string
+        content:
+          type: string
+        created_at:
+          $ref: '#/components/schemas/Time'
+        sender_name:
+          type: string
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        content:
+          type: string
+        created_at:
+          $ref: '#/components/schemas/Time'
+    Verification:
+      type: object
+      properties:
+        id:
+          type: string
+        user_id:
+          type: string
+        student_no:
+          type: string
+        real_name:
+          type: string
+        asset_id:
+          type: string
+        status:
+          type: string
+          enum: [待审, 通过, 退回]
+        reason:
+          type: string
+          nullable: true
+        created_at:
+          $ref: '#/components/schemas/Time'
+    Stats:
+      type: object
+      description: 成交按完成时间左闭右开筛选，金额按订单快照；发布与举报为累计值
+      properties:
+        sales:
+          type: object
+          properties:
+            count:
+              type: integer
+            amount:
+              $ref: '#/components/schemas/Money'
+        items:
+          type: object
+          properties:
+            count:
+              type: integer
+        reports:
+          type: object
+          properties:
+            count:
+              type: integer
+        basis:
+          type: string
+
+
+
+
+
+
+
+

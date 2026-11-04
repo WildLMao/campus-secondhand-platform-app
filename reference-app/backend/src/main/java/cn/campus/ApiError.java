@@ -42,6 +42,17 @@ class ErrorAdvice {
         return ResponseEntity.status(409).body(Map.of("message", "记录冲突或重复提交，请刷新查看已有结果。"));
     }
 
+    /**
+     * MySQL 行锁等待超时或死锁：整个事务已回滚，不重用失败事务；提示刷新后按原意图重试。
+     */
+    @ExceptionHandler({ org.springframework.dao.CannotAcquireLockException.class,
+            org.springframework.dao.PessimisticLockingFailureException.class })
+    ResponseEntity<?> locked(Exception e) {
+        org.slf4j.LoggerFactory.getLogger(ErrorAdvice.class).warn("并发写入冲突：{}", e.getMessage());
+        return ResponseEntity.status(409)
+                .body(Map.of("message", "该操作与其他请求同时发生，本次未生效。请刷新查看最新状态后按原意图重试。"));
+    }
+
     @ExceptionHandler(org.springframework.web.multipart.MaxUploadSizeExceededException.class)
     ResponseEntity<?> large(Exception e) {
         return ResponseEntity.badRequest().body(Map.of("message", "图片最大为 5MB。"));

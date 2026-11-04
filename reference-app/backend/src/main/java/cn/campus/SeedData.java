@@ -9,8 +9,10 @@ import javax.imageio.ImageIO;
 import org.springframework.boot.*;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.annotation.Order;
 
 @Component
+@Order(100)
 public class SeedData implements ApplicationRunner {
     final Store db;
     final MarketService service;

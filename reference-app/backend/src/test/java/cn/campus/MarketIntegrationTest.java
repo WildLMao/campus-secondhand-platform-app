@@ -15,8 +15,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.mock.web.MockHttpSession;
 
+/** 使用 test-scope 内存数据库验证业务规则；应用运行与交付不包含 H2。 */
 @SpringBootTest(properties = {
         "spring.datasource.url=jdbc:h2:mem:tests;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DB_CLOSE_DELAY=-1;LOCK_TIMEOUT=10000",
+        "spring.datasource.driver-class-name=org.h2.Driver",
         "app.upload-dir=./target/test-uploads", "app.seed=true" })
 @AutoConfigureMockMvc
 class MarketIntegrationTest {
@@ -75,6 +77,40 @@ class MarketIntegrationTest {
         assertEquals(0, db.list("select * from reservations where item_id=#{p.i}", p("i", i.get("id"))).size());
         assertEquals("25.00", done.get("price").toString());
         assertThrows(ApiError.class, () -> act(buyer(), o, "confirm"));
+    }
+
+    @Test
+    void schemaMigrationsAreTrackedAndTimestampsStayUtc() {
+        var migrations = db.list("select version,applied_at from schema_migrations order by version", p());
+        assertTrue(migrations.size() >= 2, "应已应用基线脚本与索引脚本");
+        assertEquals(1, n(migrations.get(0), "version"));
+        assertTrue(s(migrations.get(0), "applied_at").endsWith("Z"), "迁移时间应保存为 UTC ISO-8601");
+        var item = fresh();
+        String createdAt = s(item, "created_at");
+        assertTrue(createdAt.endsWith("Z"), "业务时间应保存为 UTC ISO-8601：" + createdAt);
+        assertTrue(createdAt.length() <= 35, "时间列长度应不超过 VARCHAR(35)");
+        var order = buy(item, buyer(), id());
+        assertNull(order.get("completed_at"));
+    }
+
+    @Test
+    void healthEndpointReportsDatabaseAndSchema() throws Exception {
+        mvc.perform(get("/api/health")).andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.database").exists())
+                .andExpect(jsonPath("$.schema").isNotEmpty());
+    }
+
+    @Test
+    void oversizeAdminReasonIsClippedToColumnWidth() {
+        var approved = fresh();
+        var edited = service.saveItem(seller(), s(approved, "id"), p("title", "待重新审核物品", "category", "教材书籍",
+                "description", "用于验证管理员说明按列宽截断", "price", "25.00", "image_id", approved.get("image_id")));
+        service.manage(admin(), "item", s(approved, "id"),
+                p("reason", "退回说明".repeat(300), "pass", false, "version", edited.get("version")));
+        var item = service.item(s(approved, "id"), false);
+        assertEquals("审核退回", s(item, "status"));
+        assertEquals(1000, s(item, "reason").length(), "说明应按 items.reason 列宽截断而不报错");
     }
 
     @Test

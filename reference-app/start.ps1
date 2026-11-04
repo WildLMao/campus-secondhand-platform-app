@@ -8,6 +8,12 @@ $javaExe = $javaCandidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) 
 if (!$javaExe) { throw 'Java 17+ is required.' }
 $port = if($env:PORT){$env:PORT}else{'18080'}
 $url = "http://127.0.0.1:$port"
+# 应用只支持 MySQL：未设置变量时按 application.yml 的默认值连接本机 MySQL，
+# 连接失败会启动失败，不会切换到其他数据库。
+if (!$env:DB_URL -and !$env:DB_USER) {
+  Write-Host '未检测到 DB_URL/DB_USER，将按默认 MySQL 配置（127.0.0.1:3306/campus）启动。'
+  Write-Host '若启动失败，请先设置 $env:DB_URL/$env:DB_USER/$env:DB_PASSWORD，见 docs/database/mysql.md。'
+}
 $runtime = Join-Path $PSScriptRoot '.runtime'
 New-Item -ItemType Directory -Path $runtime -Force | Out-Null
 $existing = Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue

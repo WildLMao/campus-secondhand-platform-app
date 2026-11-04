@@ -1,22 +1,28 @@
 server:
-  address: 127.0.0.1
+  address: ${SERVER_ADDRESS:127.0.0.1}
   port: ${PORT:18080}
+  # 由 A 的反向代理转发 X-Forwarded-* 时，按外部协议与主机生成响应与安全 Cookie 判断。
+  forward-headers-strategy: framework
   servlet:
     session:
       timeout: 60m
       cookie:
         http-only: true
         same-site: strict
+        # 公网 HTTPS 交付设置为 true；本地 HTTP 调试保持 false。
+        secure: ${SESSION_COOKIE_SECURE:false}
 spring:
   datasource:
-    url: ${DB_URL:jdbc:h2:file:./data/campus;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH}
-    username: ${DB_USER:sa}
+    # 只使用 MySQL 8.4；连接失败直接启动失败，不提供其他数据库回退。
+    # 建库、账号与验证见 docs/database/mysql.md。
+    url: "${DB_URL:jdbc:mysql://${DB_HOST:127.0.0.1}:${DB_PORT:3306}/${DB_NAME:campus}?useUnicode=true&characterEncoding=UTF-8&connectionTimeZone=UTC&forceConnectionTimeZoneToSession=true&allowPublicKeyRetrieval=true&useSSL=false}"
+    username: ${DB_USER:campus}
     password: ${DB_PASSWORD:}
+    driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       transaction-isolation: TRANSACTION_READ_COMMITTED
-  sql:
-    init:
-      mode: always
+      maximum-pool-size: ${DB_POOL_SIZE:10}
+      connection-timeout: 10000
   servlet:
     multipart:
       max-file-size: 5MB
@@ -27,5 +33,13 @@ spring:
     resources:
       static-locations: classpath:/static/
 app:
-  seed: ${DEMO_SEED:true}
+  # 演示种子仅用于本地检查，交付环境必须保持 false，并提供 BOOTSTRAP_ADMIN_* 初始管理员。
+  seed: ${DEMO_SEED:false}
   upload-dir: ${UPLOAD_DIR:./data/uploads}
+  migration:
+    locations: ${MIGRATION_LOCATIONS:classpath:db/migration}
+  bootstrap-admin:
+    username: ${BOOTSTRAP_ADMIN_USERNAME:}
+    password: ${BOOTSTRAP_ADMIN_PASSWORD:}
+    nickname: ${BOOTSTRAP_ADMIN_NICKNAME:校园管理员}
+
