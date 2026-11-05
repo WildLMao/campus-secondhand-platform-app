@@ -31,13 +31,15 @@ public class ItemController {
     }
 
     @PostMapping("/items")
-    Object publish(@RequestBody Map<String, Object> b, HttpServletRequest r) {
-        return service.saveItem(session.uid(r), null, b);
+    Object publish(@RequestBody Map<String, Object> b,
+            @RequestHeader(value = "Idempotency-Key", required = false) String key, HttpServletRequest r) {
+        return service.saveItem(session.uid(r), null, b, key);
     }
 
     @PutMapping("/items/{id}")
-    Object edit(@PathVariable String id, @RequestBody Map<String, Object> b, HttpServletRequest r) {
-        return service.saveItem(session.uid(r), id, b);
+    Object edit(@PathVariable String id, @RequestBody Map<String, Object> b,
+            @RequestHeader(value = "Idempotency-Key", required = false) String key, HttpServletRequest r) {
+        return service.saveItem(session.uid(r), id, b, key);
     }
 
     @PostMapping("/items/{id}/withdraw")
@@ -62,10 +64,23 @@ public class ItemController {
         return service.favorites(session.uid(r));
     }
 
+    /** 加入收藏（幂等：重复加入仍为已收藏）。 */
     @PostMapping("/favorites/{id}")
     Object favorite(@PathVariable String id, HttpServletRequest r) {
-        service.favorite(session.uid(r), id);
-        return p("ok", true);
+        return service.favorites(session.uid(r), id, true);
+    }
+
+    /** 取消收藏（幂等：重复取消仍为未收藏）。 */
+    @DeleteMapping("/favorites/{id}")
+    Object unfavorite(@PathVariable String id, HttpServletRequest r) {
+        return service.favorites(session.uid(r), id, false);
+    }
+
+    /** 明确设置目标状态：{"favorite":true} 为收藏，false 为取消。 */
+    @PutMapping("/favorites/{id}")
+    Object setFavorite(@PathVariable String id, @RequestBody Map<String, Object> b, HttpServletRequest r) {
+        require(b.get("favorite") instanceof Boolean, "favorite 必须为布尔值。");
+        return service.favorites(session.uid(r), id, Boolean.TRUE.equals(b.get("favorite")));
     }
 
     @GetMapping("/sellers/{id}/reviews")

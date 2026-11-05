@@ -34,6 +34,12 @@ public class OrderController {
         return service.action(session.uid(r), id, action, b, key);
     }
 
+    /** 当事人订单详情：{order, delivery, reviews}；交付登记含 actor_id/note/created_at。 */
+    @GetMapping("/orders/{id}/details")
+    Object details(@PathVariable String id, HttpServletRequest r) {
+        return service.orderDetails(session.uid(r), id);
+    }
+
     @GetMapping("/orders/{id}/reviews")
     Object orderReviews(@PathVariable String id, HttpServletRequest r) {
         return service.orderReviews(session.uid(r), id);

@@ -4,24 +4,38 @@ import static cn.campus.Store.p;
 import java.util.*;
 import java.math.BigDecimal;
 import java.time.Instant;
+import java.time.format.DateTimeParseException;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
+import java.util.regex.Pattern;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+/**
+ * 交易、审核与治理的唯一业务入口。
+ *
+ * 并发约定：先按账户主键排序加行锁，再锁物品/订单，再锁争议、报告或治理对象；
+ * 所有依赖对象状态的判断都在持锁后的最新读取上完成，锁前的读取只用于确定加锁对象。
+ * 通知在业务事务内只追加待投递记录，提交后由 NotificationDelivery 的独立 REQUIRES_NEW 事务投递。
+ */
 @Service
 public class MarketService {
     final Store db;
     final ObjectMapper json;
+    final NotificationDelivery notices;
+    final ImageGuard images = new ImageGuard();
     final BCryptPasswordEncoder encoder = new BCryptPasswordEncoder();
     static final Set<String> ACTIVE = Set.of("待卖方确认", "待交付", "待买方确认");
     static final Set<String> CATEGORIES = Set.of("教材书籍", "数码配件", "宿舍生活", "运动户外", "其他");
 
-    MarketService(Store db, ObjectMapper json) {
+    MarketService(Store db, ObjectMapper json, NotificationDelivery notices) {
         this.db = db;
         this.json = json;
+        this.notices = notices;
     }
 
     static String id() {
@@ -34,6 +48,15 @@ public class MarketService {
 
     static String s(Map<String, Object> m, String k) {
         return Objects.toString(m.get(k), "");
+    }
+
+    /**
+     * 供只读访问（通知补投）使用；业务写入仍经本类事务入口。
+     * 经 Spring 代理调用时 getter 会转发到目标对象读到真实字段；测试直接持有的目标实例同样适用。
+     * 但不得通过注入的 MarketService（可能是代理壳，字段为 null）直接读取字段；控制器以构造注入获取依赖。
+     */
+    NotificationDelivery notifications() {
+        return notices;
     }
 
     static int n(Map<String, Object> m, String k) {
@@ -134,14 +157,47 @@ public class MarketService {
                 && db.one("select * from reservations where item_id=#{p.id}", p("id", i.get("id"))) == null;
     }
 
+    /** 兼容旧调用的审计写入；新代码使用 fact()，同时记录对象类型、结果与前后值。 */
     void audit(String uid, String action, String obj, String reason) {
         db.exec("insert into audit_logs(id,actor_id,action,object_id,reason,created_at) values(#{p.id},#{p.u},#{p.a},#{p.o},#{p.r},#{p.t})",
                 p("id", id(), "u", uid, "a", action, "o", obj, "r", reason, "t", now()));
     }
 
-    void notify(String uid, String content) {
-        db.exec("insert into notifications(id,user_id,content,created_at) values(#{p.id},#{p.u},#{p.c},#{p.t})",
-                p("id", id(), "u", uid, "c", clip(content, 1000), "t", now()));
+    /**
+     * 追加一条处置事实（不改写旧记录）：object_type 如 ITEM/ACCOUNT/DISPUTE/REPORT/REVIEW/ORDER；
+     * action 为具体动作；result 为明确结果；before/after 为处置前后值；version 为涉及的物品/审核版本。
+     */
+    Map<String, Object> fact(String uid, String actorNickname, String type, String obj, String action, String result,
+            Object before, Object after, Integer version, String reason) {
+        String factId = id();
+        String t = now();
+        db.exec("insert into audit_facts(id,actor_id,object_type,object_id,action,result,before_value,after_value,version,reason,created_at) values(#{p.id},#{p.u},#{p.ty},#{p.o},#{p.a},#{p.r},#{p.b},#{p.f},#{p.v},#{p.reason},#{p.t})",
+                p("id", factId, "u", uid, "ty", type, "o", obj, "a", action, "r", result,
+                        "b", before == null ? null : clip(String.valueOf(before), 100),
+                        "f", after == null ? null : clip(String.valueOf(after), 100),
+                        "v", version, "reason", clip(reason, 1500), "t", t));
+        db.exec("insert into audit_logs(id,actor_id,action,object_id,reason,created_at) values(#{p.id},#{p.u},#{p.a},#{p.o},#{p.r},#{p.t})",
+                p("id", id(), "u", uid, "a", clip(action + "/" + result, 100), "o", obj,
+                        "r", clip(reason, 1500), "t", t));
+        return p("id", factId, "actor_id", uid, "actor_name", actorNickname, "object_type", type, "object_id", obj,
+                "action", action, "result", result, "before_value", before, "after_value", after, "version", version,
+                "reason", reason, "created_at", t);
+    }
+
+    /** 业务事务内登记通知；提交后由独立事务投递。 */
+    void notify(String eventKey, String uid, String content) {
+        notices.enqueue(eventKey, uid, content);
+    }
+
+    void afterCommit() {
+        if (!TransactionSynchronizationManager.isSynchronizationActive())
+            throw new IllegalStateException("通知必须在业务事务内登记。");
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                notices.afterCommit();
+            }
+        });
     }
 
     @Transactional
@@ -183,9 +239,25 @@ public class MarketService {
                 p("u", uid));
     }
 
+    static String keyOf(String key) {
+        require(key != null && key.matches("[A-Za-z0-9_-]{8,100}"), "请提供有效的操作标识。");
+        return key;
+    }
+
+    /** 保留旧签名（服务内调用与测试夹具）：不带提交意图，等价于一次新的提交。 */
     @Transactional
     public Map<String, Object> saveItem(String uid, String iid, Map<String, Object> b) {
+        return saveItem(uid, iid, b, null);
+    }
+
+    /**
+     * 发布/修改。带 Idempotency-Key 时，同一操作者、同一标识只产生一次业务效果：
+     * 相同内容返回原物品（修改返回原版本），不同内容视为新意图而拒绝。
+     */
+    @Transactional
+    public Map<String, Object> saveItem(String uid, String iid, Map<String, Object> b, String key) {
         lockAccounts(uid);
+        require(iid == null || uid.equals(s(item(iid, false), "seller_id")), "不能修改他人物品。");
         eligible(uid);
         String title = text(b, "title", 120), desc = text(b, "description", 5000), category = text(b, "category", 30),
                 image = text(b, "image_id", 40);
@@ -200,8 +272,24 @@ public class MarketService {
         var asset = db.one("select * from assets where id=#{p.id} and owner_id=#{p.u} and kind='ITEM'",
                 p("id", image, "u", uid));
         require(asset != null, "请先上传本人的物品图片。");
+        String operation = iid == null ? "发布物品" : "修改物品:" + iid;
+        // 内容指纹基于校验后的规范化字段（不是原始请求体），因此同一内容即使字段顺序或数值写法不同也视为同一意图。
+        Map<String, Object> payload = p("title", title, "description", desc, "category", category,
+                "price", price.toPlainString(), "image_id", image);
+        String payloadHash = hash(payload);
+        if (key != null) {
+            String k = keyOf(key);
+            var prior = db.one("select * from item_receipts where actor_id=#{p.u} and request_key=#{p.k}",
+                    p("u", uid, "k", k));
+            if (prior != null) {
+                require(operation.equals(s(prior, "operation")) && payloadHash.equals(s(prior, "payload_hash")),
+                        "相同操作标识不能改变请求内容。");
+                return item(s(prior, "item_id"), false);
+            }
+        }
         int version = 1;
         String itemId = iid == null ? id() : iid;
+        String before = null;
         if (iid != null) {
             var old = item(iid, true);
             require(uid.equals(s(old, "seller_id")), "不能修改他人物品。");
@@ -209,6 +297,7 @@ public class MarketService {
             require(db.one("select * from reservations where item_id=#{p.id}", p("id", iid)) == null, "有效订单存在时不能修改。");
             require(!s(old, "status").equals("交易异常终止") || n(old, "relist_allowed") == 1, "异常终止后须先由管理员核实归属。");
             version = n(old, "version") + 1;
+            before = s(old, "status") + "/v" + n(old, "version");
         }
         var params = p("id", itemId, "u", uid, "title", title, "d", desc, "c", category, "price", price, "image", image,
                 "v", version, "t", now());
@@ -221,7 +310,13 @@ public class MarketService {
         params.put("vid", id());
         db.exec("insert into item_versions(id,item_id,version,title,description,price,image_id,category,created_at) values(#{p.vid},#{p.id},#{p.v},#{p.title},#{p.d},#{p.price},#{p.image},#{p.c},#{p.t})",
                 params);
-        audit(uid, "物品提交审核", itemId, "版本 " + version);
+        if (key != null) {
+            db.exec("insert into item_receipts(id,actor_id,request_key,operation,payload_hash,item_id,item_version,created_at) values(#{p.id},#{p.u},#{p.k},#{p.op},#{p.h},#{p.i},#{p.v},#{p.t})",
+                    p("id", id(), "u", uid, "k", keyOf(key), "op", operation, "h", payloadHash, "i", itemId, "v", version,
+                            "t", now()));
+        }
+        fact(uid, s(account(uid), "nickname"), "ITEM", itemId, iid == null ? "发布物品" : "修改物品",
+                iid == null ? "创建待审版本" : "新版本待审", before, "待审/v" + version, version, "版本 " + version);
         return item(itemId, false);
     }
 
@@ -231,10 +326,12 @@ public class MarketService {
         eligible(uid);
         var i = item(iid, true);
         require(uid.equals(s(i, "seller_id")), "仅物主可撤下。");
-        require(Set.of("在售", "待审", "审核退回").contains(s(i, "status")), "当前状态不能撤下。");
+        String priorStatus = s(i, "status");
+        require(Set.of("在售", "待审", "审核退回").contains(priorStatus), "当前状态不能撤下。");
         require(db.one("select * from reservations where item_id=#{p.id}", p("id", iid)) == null, "有有效订单，不能撤下。");
         db.exec("update items set status='已撤下' where id=#{p.id}", p("id", iid));
-        audit(uid, "撤下物品", iid, "");
+        fact(uid, s(account(uid), "nickname"), "ITEM", iid, "撤下物品", "已撤下", priorStatus, "已撤下",
+                n(i, "version"), "");
     }
 
     @Transactional
@@ -247,8 +344,9 @@ public class MarketService {
         String student = text(b, "student_no", 50), name = text(b, "real_name", 50), asset = text(b, "asset_id", 40);
         require(db.one("select id from assets where id=#{p.a} and owner_id=#{p.u} and kind='VERIFY'",
                 p("a", asset, "u", uid)) != null, "请上传本人的认证材料图片。");
+        String vid = id();
         db.exec("insert into verifications(id,user_id,student_no,real_name,asset_id,status,created_at) values(#{p.id},#{p.u},#{p.s},#{p.n},#{p.a},'待审',#{p.t})",
-                p("id", id(), "u", uid, "s", student, "n", name, "a", asset, "t", now()));
+                p("id", vid, "u", uid, "s", student, "n", name, "a", asset, "t", now()));
         audit(uid, "提交认证", uid, "");
     }
 
@@ -303,21 +401,26 @@ public class MarketService {
         db.exec("update items set status='交易中' where id=#{p.i}", p("i", iid));
         receipt(uid, key, "下单:" + iid, b, oid);
         audit(uid, "下单", oid, "");
-        notify(s(i, "seller_id"), "收到新订单：" + s(i, "title"));
+        notify("order-created:" + oid, s(i, "seller_id"), "收到新订单：" + s(i, "title"));
+        afterCommit();
         return order(uid, oid, false);
     }
 
     void transition(String uid, Map<String, Object> o, String stage, String reason) {
         String oid = s(o, "id"), iid = s(o, "item_id");
+        // 管理员处置说明最长 1500 字，而 orders.reason 列为 1000；按列宽保存主体，完整说明保留在处置事实与订单快照之外。
+        String orderReason = clip(reason, 1000);
         db.exec("update orders set stage=#{p.s},reason=#{p.r},completed_at=#{p.t,jdbcType=VARCHAR} where id=#{p.id}",
-                p("s", stage, "r", reason, "t", stage.equals("已完成") ? now() : null, "id", oid));
+                p("s", stage, "r", orderReason, "t", stage.equals("已完成") ? now() : null, "id", oid));
         if (!ACTIVE.contains(stage)) {
             db.exec("delete from reservations where item_id=#{p.i} and order_id=#{p.o}", p("i", iid, "o", oid));
             db.exec("update items set status=#{p.s} where id=#{p.id}",
                     p("s", stage.equals("已完成") ? "已成交" : stage.equals("已异常终止") ? "交易异常终止" : "在售", "id", iid));
         }
-        audit(uid, stage, oid, reason);
-        notify(uid.equals(s(o, "buyer_id")) ? s(o, "seller_id") : s(o, "buyer_id"), s(o, "title") + "：" + stage);
+        fact(uid, s(account(uid), "nickname"), "ORDER", oid, "订单阶段", stage,
+                s(o, "stage"), stage, n(o, "item_version"), reason);
+        notify("order-stage:" + oid + ":" + stage, uid.equals(s(o, "buyer_id")) ? s(o, "seller_id") : s(o, "buyer_id"),
+                s(o, "title") + "：" + stage);
     }
 
     @Transactional
@@ -341,9 +444,11 @@ public class MarketService {
             case "deliver" -> {
                 require(seller && stage.equals("待交付") && n(o, "disputed") == 0, "当前不能登记交付。");
                 require(Boolean.TRUE.equals(b.get("declared")), "必须确认已经实际交付。");
-                db.exec("insert into deliveries(order_id,actor_id,note,created_at) values(#{p.o},#{p.u},#{p.n},#{p.t})",
-                        p("o", oid, "u", uid, "n", text(b, "reason", 1000), "t", now()));
+                String note = clip(text(b, "reason", 1000), 1000);
+                db.exec("insert into deliveries(order_id,actor_id,note,created_at,revision) values(#{p.o},#{p.u},#{p.n},#{p.t},1)",
+                        p("o", oid, "u", uid, "n", note, "t", now()));
                 transition(uid, o, "待买方确认", "");
+                fact(uid, s(account(uid), "nickname"), "DELIVERY", oid, "登记交付", "已登记", null, note, null, "");
             }
             case "confirm" -> {
                 require(!seller && stage.equals("待买方确认"), "仅订单买方可在登记后确认收到。");
@@ -364,27 +469,40 @@ public class MarketService {
                 require(seller && stage.equals("待买方确认"), "仅卖方可在登记后提醒。");
                 if (n(o, "reminded") == 0) {
                     db.exec("update orders set reminded=1 where id=#{p.id}", p("id", oid));
-                    notify(s(o, "buyer_id"), "卖方提醒确认收到：" + s(o, "title"));
+                    notify("order-remind:" + oid, s(o, "buyer_id"), "卖方提醒确认收到：" + s(o, "title"));
                     audit(uid, "提醒买方", oid, "");
                 }
             }
             default -> throw new ApiError(404, "未知订单操作。");
         }
         receipt(uid, key, action + ":" + oid, b, oid);
+        afterCommit();
         return order(uid, oid, false);
     }
 
+    /** 保留旧签名：加入收藏（同一意图重试仍为已收藏）。 */
     @Transactional
     public void favorite(String uid, String iid) {
+        favorites(uid, iid, true);
+    }
+
+    /**
+     * 明确设置收藏目标状态：adding=true 为加入，false 为取消。
+     * 加入幂等（重复加入仍为已收藏），取消幂等（重复取消仍为未收藏，未收藏时无需认证或物品在售）。
+     */
+    @Transactional
+    public Map<String, Object> favorites(String uid, String iid, boolean adding) {
         lockAccounts(uid);
         var exists = db.one("select * from favorites where user_id=#{p.u} and item_id=#{p.i}", p("u", uid, "i", iid));
-        if (exists != null) {
+        if (adding) {
+            eligible(uid);
+            require(available(item(iid, false)), "物品不可访问。");
+            if (exists == null)
+                db.exec("insert into favorites(user_id,item_id) values(#{p.u},#{p.i})", p("u", uid, "i", iid));
+        } else if (exists != null) {
             db.exec("delete from favorites where user_id=#{p.u} and item_id=#{p.i}", p("u", uid, "i", iid));
-            return;
         }
-        eligible(uid);
-        require(available(item(iid, false)), "物品不可访问。");
-        db.exec("insert into favorites(user_id,item_id) values(#{p.u},#{p.i})", p("u", uid, "i", iid));
+        return p("ok", true, "favorite", adding, "item_id", iid);
     }
 
     public List<Map<String, Object>> favorites(String uid) {
@@ -404,24 +522,37 @@ public class MarketService {
             throw new ApiError("评分应为 1—5。");
         }
         require(score >= 1 && score <= 5, "评分应为 1—5。");
+        String content = text(b, "content", 1000);
+        require(!ImageGuard.contact(content), "评价不能包含联系方式（手机号、邮箱或社交账号），评价可能公开展示。");
         db.exec("insert into reviews(id,order_id,author_id,target_id,score,content,created_at) values(#{p.id},#{p.o},#{p.u},#{p.target},#{p.s},#{p.c},#{p.t})",
                 p("id", id(), "o", oid, "u", uid, "target",
                         uid.equals(s(o, "buyer_id")) ? o.get("seller_id") : o.get("buyer_id"), "s", score, "c",
-                        text(b, "content", 1000), "t", now()));
+                        content, "t", now()));
         audit(uid, "评价", oid, "");
     }
 
+    /**
+     * 卖方公开评价：读取时再次脱敏联系方式（含历史记录），治理隐藏的评价不返回；
+     * 返回 author_id 便于前端区分本人评价。
+     */
     public List<Map<String, Object>> reviews(String seller) {
         account(seller);
         return db.list(
-                "select r.score,r.content,r.created_at,a.nickname from reviews r join accounts a on a.id=r.author_id join orders o on o.id=r.order_id where r.target_id=#{p.u} and o.seller_id=#{p.u} and r.hidden=0 order by r.created_at desc",
-                p("u", seller));
+                "select r.id,r.order_id,r.author_id,r.score,r.content,r.created_at,a.nickname from reviews r join accounts a on a.id=r.author_id join orders o on o.id=r.order_id where r.target_id=#{p.u} and o.seller_id=#{p.u} and r.hidden=0 order by r.created_at desc",
+                p("u", seller)).stream().map(r -> {
+                    r.put("content", images.mask(s(r, "content")));
+                    return r;
+                }).toList();
     }
 
+    /** 当事人查看本单评价（含隐藏标记与脱敏后的内容）。 */
     public List<Map<String, Object>> orderReviews(String uid, String oid) {
         order(uid, oid, false);
-        return db.list("select id,author_id,score,content,hidden,created_at from reviews where order_id=#{p.o}",
-                p("o", oid));
+        return db.list("select id,order_id,author_id,target_id,score,content,hidden,created_at from reviews where order_id=#{p.o} order by created_at",
+                p("o", oid)).stream().map(r -> {
+                    r.put("content", images.mask(s(r, "content")));
+                    return r;
+                }).toList();
     }
 
     @Transactional
@@ -429,30 +560,57 @@ public class MarketService {
         var o = lockOrder(uid, oid, false);
         require(ACTIVE.contains(s(o, "stage")), "订单已结束，请使用一般举报。");
         require(n(o, "disputed") == 0, "已有处理中争议，请在原申请补证。");
-        db.exec("insert into disputes(id,order_id,author_id,reason,evidence,status,created_at) values(#{p.id},#{p.o},#{p.u},#{p.r},#{p.e},'处理中',#{p.t})",
-                p("id", id(), "o", oid, "u", uid, "r", text(b, "reason", 1500), "e", evidence(b, "evidence"), "t",
+        String did = id();
+        db.exec("insert into disputes(id,order_id,author_id,reason,evidence,status,created_at,revision) values(#{p.id},#{p.o},#{p.u},#{p.r},#{p.e},'处理中',#{p.t},1)",
+                p("id", did, "o", oid, "u", uid, "r", text(b, "reason", 1500), "e", evidence(b, "evidence"), "t",
                         now()));
         db.exec("update orders set disputed=1 where id=#{p.id}", p("id", oid));
-        audit(uid, "申请履约争议", oid, s(b, "reason"));
+        fact(uid, s(account(uid), "nickname"), "DISPUTE", did, "申请履约争议", "处理中", null, "处理中", null,
+                s(b, "reason"));
+    }
+
+    /** 争议的补证记录（按提交时间顺序），供当事人列表与管理台共用；只返回展示字段。 */
+    List<Map<String, Object>> evidenceLog(Object did) {
+        return db.list(
+                "select id,author_id,content,created_at from dispute_evidence where dispute_id=#{p.d} order by created_at,id",
+                p("d", did));
+    }
+
+    Map<String, Object> withEvidenceLog(Map<String, Object> d) {
+        d.put("evidence_log", evidenceLog(d.get("id")));
+        return d;
     }
 
     public List<Map<String, Object>> disputes(String uid) {
         return db.list(
                 "select d.* from disputes d join orders o on o.id=d.order_id where o.buyer_id=#{p.u} or o.seller_id=#{p.u} order by d.created_at desc",
-                p("u", uid));
+                p("u", uid)).stream().map(this::withEvidenceLog).toList();
     }
 
+    /**
+     * 补证：先确定订单并按统一顺序加锁，锁后以 FOR UPDATE 读取争议最新状态；只有订单双方可补证，
+     * 第三人拒绝，已结案拒绝。新证据追加为一条独立记录（带作者与时间），不改写原提交证据；
+     * 版本号条件更新保证依据的是当前争议行，避免锁前旧快照覆盖或越过结案边界。
+     */
     @Transactional
     public void supplement(String uid, String did, Map<String, Object> b) {
-        var d = db.one("select * from disputes where id=#{p.id}", p("id", did));
-        require(d != null, "争议不存在。");
-        lockOrder(uid, s(d, "order_id"), false);
-        require(s(d, "status").equals("处理中"), "争议已结案，后续反馈请举报。");
-        String combined = s(d, "evidence") + "\n[" + now() + " / " + s(account(uid), "nickname") + "] "
-                + text(b, "evidence", 1500);
-        require(combined.getBytes(StandardCharsets.UTF_8).length <= 60000, "补证内容过长，请合并说明后重试。");
-        db.exec("update disputes set evidence=#{p.e} where id=#{p.id}", p("id", did, "e", combined));
-        audit(uid, "争议补证", did, "");
+        var hint = db.one("select * from disputes where id=#{p.id}", p("id", did));
+        require(hint != null, "争议不存在。");
+        lockOrder(uid, s(hint, "order_id"), false);
+        // 锁后以 SELECT ... FOR UPDATE 做真实当前读：MyBatis 一级缓存(SESSION)会用同一 SQL 的锁前结果命中，
+        // 而补证自身不改争议行（@Update 不刷新缓存），所以必须由数据库锁定读，不能复用锁前快照。
+        var d = db.one("select * from disputes where id=#{p.id} for update", p("id", did));
+        require(d != null && s(d, "order_id").equals(s(hint, "order_id")), "争议不存在。");
+        if (!s(d, "status").equals("处理中"))
+            throw new ApiError("争议已结案，后续反馈请举报。");
+        String content = text(b, "evidence", 1500);
+        // 证据时间取锁后真实的提交时刻（此处 now()）；追加后仍由结案流程统一裁决。
+        db.exec("insert into dispute_evidence(id,dispute_id,author_id,content,created_at) values(#{p.id},#{p.d},#{p.u},#{p.c},#{p.t})",
+                p("id", id(), "d", did, "u", uid, "c", content, "t", now()));
+        db.exec("update disputes set revision=revision+1 where id=#{p.id} and status='处理中' and revision=#{p.r}",
+                p("id", did, "r", n(d, "revision")));
+        fact(uid, s(account(uid), "nickname"), "DISPUTE", did, "补证", "已追加", "处理中", "处理中(补证)",
+                n(d, "revision"), content);
     }
 
     @Transactional
@@ -471,10 +629,12 @@ public class MarketService {
             account(obj);
         else
             throw new ApiError("举报对象类型无效。");
+        String rid = id();
         db.exec("insert into reports(id,author_id,object_type,object_id,reason,evidence,status,created_at) values(#{p.id},#{p.u},#{p.ty},#{p.o},#{p.r},#{p.e},'待处理',#{p.t})",
-                p("id", id(), "u", uid, "ty", type, "o", obj, "r", text(b, "reason", 1500), "e", evidence(b, "evidence"),
+                p("id", rid, "u", uid, "ty", type, "o", obj, "r", text(b, "reason", 1500), "e", evidence(b, "evidence"),
                         "t", now()));
-        audit(uid, "提交举报", obj, s(b, "reason"));
+        fact(uid, s(account(uid), "nickname"), "REPORT", rid, "提交举报", "待处理", null, "待处理", null,
+                s(b, "reason"));
     }
 
     public List<Map<String, Object>> reports(String uid) {
@@ -517,6 +677,19 @@ public class MarketService {
                 p("ty", type, "i", obj, "u", uid, "o", other));
     }
 
+    /** 会话上下文：消息 + 服务端判定的只读状态（终态订单只读，服务端仍拒绝发送）。 */
+    public Map<String, Object> context(String uid, String type, String obj, String buyer) {
+        List<Map<String, Object>> rows = messages(uid, type, obj, buyer);
+        boolean readOnly;
+        if (type.equals("ORDER")) {
+            var o = order(uid, obj, false);
+            readOnly = !ACTIVE.contains(s(o, "stage"));
+        } else {
+            readOnly = !available(item(obj, false));
+        }
+        return p("messages", rows, "readOnly", readOnly, "context_type", type, "context_id", obj);
+    }
+
     @Transactional
     public void message(String uid, String type, String obj, String buyer, Map<String, Object> b) {
         if (type.equals("ORDER"))
@@ -526,7 +699,8 @@ public class MarketService {
         String other = peer(uid, type, obj, buyer, true);
         db.exec("insert into messages(id,context_type,context_id,sender_id,receiver_id,content,created_at) values(#{p.id},#{p.ty},#{p.i},#{p.u},#{p.o},#{p.c},#{p.t})",
                 p("id", id(), "ty", type, "i", obj, "u", uid, "o", other, "c", text(b, "content", 1500), "t", now()));
-        notify(other, "收到一条新消息。");
+        notify("message:" + id(), other, "收到一条新消息。");
+        afterCommit();
     }
 
     public List<Map<String, Object>> inbox(String uid) {
@@ -535,6 +709,11 @@ public class MarketService {
                 p("u", uid));
     }
 
+    /**
+     * 管理台数据：仅管理员可读。items/accounts/reports/reviews/logs/facts 为全站治理范围；
+     * verifications 是整个认证队列；disputes 是整个争议队列，每条附带 evidence_log
+     * （补证记录 {id,author_id,content,created_at}），与管理台核查订单依据的接口配合使用。
+     */
     @Transactional
     public Map<String, Object> dashboard(String uid) {
         admin(uid);
@@ -547,47 +726,122 @@ public class MarketService {
                 "accounts",
                 db.list("select id,username,nickname,role,verified,restricted from accounts order by created_at", p()),
                 "disputes",
+                // 管理台与当事人列表使用同一补证辅助方法，争议处置时可核查锁后追加的证据记录。
                 db.list("select d.*,o.title,o.stage from disputes d join orders o on o.id=d.order_id order by d.created_at desc",
-                        p()),
+                        p()).stream().map(this::withEvidenceLog).toList(),
                 "reports", db.list("select * from reports order by created_at desc", p()), "reviews",
                 db.list("select * from reviews order by created_at desc", p()), "logs",
                 db.list("select l.*,a.nickname from audit_logs l join accounts a on a.id=l.actor_id order by l.created_at desc limit 100",
+                        p()),
+                "facts",
+                db.list("select f.*,a.nickname as actor_name from audit_facts f join accounts a on a.id=f.actor_id order by f.created_at desc limit 200",
                         p()));
     }
 
+    /** 解析统计时间参数：只接受带明确偏移的 ISO-8601 写法（Z、小数秒任意位数、+08:00 等），统一为 Instant。 */
+    static Instant instant(String value, String label) {
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException e) {
+            throw new ApiError(label + "格式错误，请使用 ISO-8601 时间，例如 2026-11-04T13:55:56Z 或 2026-11-04T21:55:56+08:00。");
+        }
+    }
+
+    /**
+     * 成交统计：按完成时刻做 [from, to) 的真实时间比较，而不是比较 ISO 字符串。
+     *
+     * 旧数据的 completed_at 是 VARCHAR 且不同记录的小数秒位数不同（如 .892773700Z、.892Z、无小数秒），
+     * 字符串比较会把这些写成不同形式的同一时刻判成不同结果，直接改写历史又可能截断纳秒。
+     * 因此本项目（课程规模，已完成订单为千条量级）读取已完成订单的完成时刻与快照金额，
+     * 在 Java 中用 Instant 精确比较完成时刻、用 BigDecimal 汇总快照金额；不落库改写旧时间，
+     * 也不对原始 ISO 字符串做排序比较（包括不以字符串条件预筛，避免任何依赖书写格式的边界）。
+     * 若数据量增长，可另做保留纳秒的时间类型迁移（列类型迁移，非字符串排序）。
+     */
     public Map<String, Object> statistics(String uid, String from, String to) {
         admin(uid);
-        String clause = "";
-        Map<String, Object> params = p();
-        if (!from.isBlank()) {
+        Instant lower = from.isBlank() ? null : instant(from.trim(), "开始时间");
+        Instant upper = to.isBlank() ? null : instant(to.trim(), "结束时间");
+        String sql = "select price,completed_at,created_at from orders where stage='已完成'";
+        // 只取需要的三列：旧库可能有更大列或后续新增列，避免一次读出全部宽行。
+        int count = 0;
+        BigDecimal amount = BigDecimal.ZERO;
+        for (var row : db.list(sql, p())) {
+            Object rawPrice = row.get("price");
+            Instant done;
             try {
-                Instant.parse(from);
-            } catch (Exception e) {
-                throw new ApiError("开始时间格式错误。");
+                done = Instant.parse(s(row, "completed_at"));
+            } catch (DateTimeParseException e) {
+                continue;
             }
-            clause += " and completed_at>=#{p.from}";
-            params.put("from", from);
+            if (lower != null && done.compareTo(lower) < 0)
+                continue;
+            if (upper != null && done.compareTo(upper) >= 0)
+                continue;
+            count++;
+            amount = amount.add(new BigDecimal(String.valueOf(rawPrice)));
         }
-        if (!to.isBlank()) {
-            try {
-                Instant.parse(to);
-            } catch (Exception e) {
-                throw new ApiError("结束时间格式错误。");
-            }
-            clause += " and completed_at<#{p.to}";
-            params.put("to", to);
-        }
-        return p("sales",
-                db.one("select count(*) as count,coalesce(sum(price),0) as amount from orders where stage='已完成'"
-                        + clause, params),
+        return statsResult(count, amount);
+    }
+
+    Map<String, Object> statsResult(int count, BigDecimal amount) {
+        return p("sales", p("count", count, "amount", amount),
                 "items", db.one("select count(*) as count from items", p()), "reports",
                 db.one("select count(*) as count from reports", p()), "basis",
-                "成交按完成时间筛选：[开始, 结束)，金额按订单快照；发布/举报数量为累计值。");
+                "成交按完成时刻筛选：[开始, 结束)，按解析后的时间精确比较；金额按订单快照汇总；发布/举报数量为累计值。");
+    }
+
+    /**
+     * 管理员订单核查视图：仅当该订单存在关联争议或订单举报（且未对他单擅自开放）时返回
+     * {order,delivery,reviews}；每次查看写入一条带管理员身份的处置事实与审计日志。
+     * 管理员不能冒用买方身份确认或评价，也不因此获得无关订单的访问权。
+     */
+    @Transactional
+    public Map<String, Object> adminOrderDetails(String uid, String oid) {
+        admin(uid);
+        var hint = db.one("select buyer_id,seller_id from orders where id=#{p.id}", p("id", oid));
+        if (hint == null)
+            throw new ApiError(404, "订单不存在。");
+        // 与订单操作相同的加锁顺序：双方账户 → 订单；锁后重新确认治理关联，避免检查后关联被并发改变。
+        lockAccounts(s(hint, "buyer_id"), s(hint, "seller_id"));
+        var o = db.one("select * from orders where id=#{p.id} for update", p("id", oid));
+        long disputes = ((Number) db.one("select count(*) as c from disputes where order_id=#{p.o}",
+                p("o", oid)).get("c")).longValue();
+        long reports = ((Number) db.one("select count(*) as c from reports where object_type='ORDER' and object_id=#{p.o}",
+                p("o", oid)).get("c")).longValue();
+        require(disputes > 0 || reports > 0, "该订单没有关联争议或举报，治理范围不开放。");
+        var detail = orderDetail(o);
+        fact(uid, s(account(uid), "nickname"), "ORDER", oid, "管理员查看订单核查依据", "已留痕",
+                "争议=" + disputes + "/举报=" + reports, null, n(o, "item_version"), "治理核查");
+        return detail;
+    }
+
+    /** 当事人订单详情：本人订单的当前进度、交付登记明细（含操作者、说明与时间）与评价。 */
+    public Map<String, Object> orderDetails(String uid, String oid) {
+        var o = order(uid, oid, false);
+        return orderDetail(o);
+    }
+
+    Map<String, Object> orderDetail(Map<String, Object> o) {
+        String oid = s(o, "id");
+        var delivery = db.one(
+                "select d.order_id,d.actor_id,a.nickname as actor_name,d.note,d.created_at from deliveries d left join accounts a on a.id=d.actor_id where d.order_id=#{p.o}",
+                p("o", oid));
+        if (delivery != null) {
+            delivery.put("actor_name", s(delivery, "actor_name"));
+            delivery.put("created_at", s(delivery, "created_at"));
+        }
+        var reviews = db.list("select id,order_id,author_id,target_id,score,content,hidden,created_at from reviews where order_id=#{p.o} order by created_at",
+                p("o", oid)).stream().map(r -> {
+                    r.put("content", images.mask(s(r, "content")));
+                    return r;
+                }).toList();
+        return p("order", o, "delivery", delivery, "reviews", reviews);
     }
 
     @Transactional
     public void manage(String uid, String kind, String obj, Map<String, Object> b) {
         admin(uid);
+        String actor = s(account(uid), "nickname");
         String reason = text(b, "reason", 1500);
         switch (kind) {
             case "verification" -> {
@@ -609,66 +863,110 @@ public class MarketService {
                 }
                 db.exec("update verifications set status=#{p.s},reason=#{p.r} where id=#{p.id}",
                         p("s", pass ? "通过" : "退回", "r", clip(reason, 1000), "id", obj));
-                notify(s(v, "user_id"), "校园认证" + (pass ? "通过" : "退回：" + clip(reason, 1000)));
+                fact(uid, actor, "VERIFICATION", obj, "认证审核", pass ? "通过" : "退回", "待审", pass ? "通过" : "退回",
+                        null, reason);
+                notify("verification:" + obj, s(v, "user_id"), "校园认证" + (pass ? "通过" : "退回：" + clip(reason, 1000)));
             }
             case "item" -> {
                 var i = item(obj, true);
                 require(s(i, "status").equals("待审"), "物品已非待审。");
                 require(s(b, "version").equals(String.valueOf(n(i, "version"))), "审核版本已经变化，请刷新。");
                 boolean pass = Boolean.TRUE.equals(b.get("pass"));
+                int version = n(i, "version");
                 db.exec("update items set status=#{p.s},reason=#{p.r} where id=#{p.id}",
                         p("s", pass ? "在售" : "审核退回", "r", clip(reason, 1000), "id", obj));
-                notify(s(i, "seller_id"), "物品审核" + (pass ? "通过" : "退回：" + clip(reason, 1000)));
+                fact(uid, actor, "ITEM", obj, "审核版本 v" + version, pass ? "通过" : "退回", "待审",
+                        pass ? "在售" : "审核退回", version, reason);
+                notify("item-review:" + obj + ":v" + version, s(i, "seller_id"),
+                        "物品审核" + (pass ? "通过" : "退回：" + clip(reason, 1000)));
             }
             case "hide" -> {
-                item(obj, true);
-                db.exec("update items set hidden=#{p.h} where id=#{p.id}",
-                        p("h", Boolean.TRUE.equals(b.get("hidden")) ? 1 : 0, "id", obj));
+                var i = item(obj, true);
+                int nowValue = Boolean.TRUE.equals(b.get("hidden")) ? 1 : 0;
+                int before = n(i, "hidden");
+                db.exec("update items set hidden=#{p.h} where id=#{p.id}", p("h", nowValue, "id", obj));
+                fact(uid, actor, "ITEM", obj, "隐藏开关", nowValue == 1 ? "已隐藏" : "已解除隐藏", before, nowValue,
+                        n(i, "version"), reason);
             }
             case "restrict" -> {
                 lockAccounts(obj);
                 var u = account(obj);
                 require(!s(u, "role").equals("ADMIN"), "不能通过此入口限制管理员。");
-                db.exec("update accounts set restricted=#{p.r} where id=#{p.id}",
-                        p("r", Boolean.TRUE.equals(b.get("restricted")) ? 1 : 0, "id", obj));
-                notify(obj, reason);
+                int nowValue = Boolean.TRUE.equals(b.get("restricted")) ? 1 : 0;
+                int before = n(u, "restricted");
+                db.exec("update accounts set restricted=#{p.r} where id=#{p.id}", p("r", nowValue, "id", obj));
+                String factId = (String) fact(uid, actor, "ACCOUNT", obj, "账户限制开关",
+                        nowValue == 1 ? "已限制" : "已恢复", before, nowValue, null, reason).get("id");
+                notify("restrict:" + factId, obj, reason);
             }
             case "relist" -> {
                 var i = item(obj, true);
                 require(s(i, "status").equals("交易异常终止"), "仅异常终止物品需要核实归属。");
                 db.exec("update items set relist_allowed=1 where id=#{p.id}", p("id", obj));
-                notify(s(i, "seller_id"), "物品归属已核实，可修改后重新提交审核。");
+                // 物品可多次异常终止并再次核实：每次核实是独立事件，事件键用本次核实生成的处置事实标识
+                // factId（每次都不同），不能用品主或物品标识作键；同一事件的投递重试复用该记录。
+                String factId = (String) fact(uid, actor, "ITEM", obj, "核实归属", "允许重新提交", n(i, "relist_allowed"), 1,
+                        n(i, "version"), reason).get("id");
+                notify("relist:" + factId, s(i, "seller_id"), "物品归属已核实，可修改后重新提交审核。");
             }
             case "dispute" -> {
-                var d = db.one("select * from disputes where id=#{p.id}", p("id", obj));
-                require(d != null, "争议不存在。");
-                var o = lockOrder(uid, s(d, "order_id"), true);
-                d = db.one("select * from disputes where id=#{p.id} for update", p("id", obj));
+                var hint = db.one("select * from disputes where id=#{p.id}", p("id", obj));
+                require(hint != null, "争议不存在。");
+                var o = lockOrder(uid, s(hint, "order_id"), true);
+                var d = db.one("select * from disputes where id=#{p.id} for update", p("id", obj));
                 require(s(d, "status").equals("处理中") && ACTIVE.contains(s(o, "stage")), "争议已结束。");
                 String outcome = text(b, "outcome", 20);
                 require(Set.of("continue", "terminate").contains(outcome), "处置方式无效。");
+                String result = outcome.equals("continue") ? "继续履约" : "异常终止";
                 if (outcome.equals("terminate")) {
                     require(Boolean.TRUE.equals(b.get("evidence_confirmed")), "须确认已核查无法履约依据，不能仅因沉默终止。");
                     transition(uid, o, "已异常终止", reason);
                 }
                 db.exec("update orders set disputed=0 where id=#{p.id}", p("id", o.get("id")));
-                db.exec("update disputes set status='已结案',outcome=#{p.o},decision=#{p.r} where id=#{p.id}",
-                        p("o", outcome.equals("continue") ? "继续履约" : "异常终止", "r", reason, "id", obj));
+                // 以 status='处理中' 为条件做一次真实的当前决策：并发/重复结案只有一个能改变争议行；
+                // 未改变说明另一事务已结案，本次整体拒绝（不重复通知、不追加结案事实）。
+                int closed = db.exec("update disputes set status='已结案',outcome=#{p.o},decision=#{p.r} where id=#{p.id} and status='处理中'",
+                        p("o", result, "r", reason, "id", obj));
+                require(closed == 1, "争议已结束。");
+                fact(uid, actor, "DISPUTE", obj, "争议结案", result, s(o, "stage"), "已结案/" + result, n(o, "item_version"),
+                        reason);
+                String oid = s(o, "id");
+                // 通知内容最长 1000 字（NotificationDelivery 投递时截断），而处置说明最长 1500 字：
+                // 因此把订单/争议标识（短号与完整 id）与结论放在说明之前，说明只保留摘要并指向全文，
+                // 保证截断后仍能定位到本次事件；完整原因仍保存在 disputes.decision 与处置事实中，不删除。
+                String summary = clip(reason, 200);
+                String msg = "争议已结案：" + s(o, "title") + "；结论：" + result + "；订单 " + oid + "（订单号 "
+                        + oid.substring(0, 8) + "），争议 " + obj + "（争议号 " + obj.substring(0, 8) + "）；说明（摘要）："
+                        + summary + (summary.length() < reason.length() ? "…" : "")
+                        + "。完整说明请到“我的订单”该订单的履约争议查看。";
+                // 争议只结案一次（上面的条件更新保证）；事件键是争议标识本身，双方各自一条，
+                // 同一争议的重复通知登记或投递重试都落到同一条待投递记录，不会重复发送。
+                notify("dispute-closed:" + obj, s(o, "buyer_id"), msg);
+                notify("dispute-closed:" + obj, s(o, "seller_id"), msg);
             }
             case "report" -> {
                 var r = db.one("select * from reports where id=#{p.id} for update", p("id", obj));
                 require(r != null, "举报不存在。");
+                String ref = optional(b, "event_ref", 100);
                 db.exec("update reports set status='已处理',result=#{p.r},event_ref=#{p.e} where id=#{p.id}",
-                        p("r", reason, "e", optional(b, "event_ref", 100), "id", obj));
-                notify(s(r, "author_id"), "举报处理结果：" + reason);
+                        p("r", reason, "e", ref, "id", obj));
+                // 同一举报可因新增事实再次处置：每次处置是独立事件，事件键用本次处置生成的处置事实标识
+                // factId（每次都不同）；同一事件的投递重试复用该记录，不重复通知。
+                String factId = (String) fact(uid, actor, "REPORT", obj, "举报处置", "已处理", s(r, "status"), "已处理",
+                        null, reason).get("id");
+                notify("report-result:" + factId, s(r, "author_id"), "举报处理结果：" + reason);
             }
             case "review" -> {
-                require(db.one("select id from reviews where id=#{p.id}", p("id", obj)) != null, "评价不存在。");
-                db.exec("update reviews set hidden=#{p.h} where id=#{p.id}",
-                        p("h", Boolean.TRUE.equals(b.get("hidden")) ? 1 : 0, "id", obj));
+                var r = db.one("select * from reviews where id=#{p.id} for update", p("id", obj));
+                require(r != null, "评价不存在。");
+                int nowValue = Boolean.TRUE.equals(b.get("hidden")) ? 1 : 0;
+                int before = n(r, "hidden");
+                db.exec("update reviews set hidden=#{p.h} where id=#{p.id}", p("h", nowValue, "id", obj));
+                fact(uid, actor, "REVIEW", obj, "评价可见性", nowValue == 1 ? "已隐藏" : "已恢复", before, nowValue, null,
+                        reason);
             }
-            default -> throw new ApiError("未知管理操作。");
+            default -> throw new ApiError(404, "未知管理操作。");
         }
-        audit(uid, "管理:" + kind, obj, reason);
+        afterCommit();
     }
 }

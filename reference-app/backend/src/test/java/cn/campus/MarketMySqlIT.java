@@ -124,7 +124,8 @@ class MarketMySqlIT {
         assertEquals("待买方确认", s(pending, "stage"));
         assertNull(pending.get("completed_at"), "登记交付不计成交");
 
-        var done = service.action(buyer, s(order, "id"), "confirm", p("reason", ""), id());
+        // 与已有契约一致：confirm 须由买方显式声明本人已收到物品（declared=true），不削弱服务端校验
+        var done = service.action(buyer, s(order, "id"), "confirm", p("reason", "本人已当面收到物品", "declared", true), id());
         assertEquals("已完成", s(done, "stage"));
         assertNotNull(done.get("completed_at"));
         assertTrue(s(done, "completed_at").endsWith("Z"));

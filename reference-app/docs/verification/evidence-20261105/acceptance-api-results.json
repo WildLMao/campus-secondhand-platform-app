@@ -1,0 +1,37 @@
+{
+  "origin": "http://127.0.0.1:19080",
+  "checks": [
+    {
+      "label": "#1 发布重试只创建一件，改变内容拒绝",
+      "status": "passed"
+    },
+    {
+      "label": "#8 收藏明确状态且重试不取消",
+      "status": "passed"
+    },
+    {
+      "label": "#6 交付登记可读且仅当事人及关联治理可查",
+      "status": "passed"
+    },
+    {
+      "label": "#2 双方补证保留原始事实，第三人拒绝",
+      "status": "passed"
+    },
+    {
+      "label": "#10 继续履约通知双方一次，结案后补证拒绝",
+      "status": "passed"
+    },
+    {
+      "label": "实际买方确认完成，终态会话只读",
+      "status": "passed"
+    },
+    {
+      "label": "#9 双方评价可查且第三人拒绝；联系方式拒绝，正常型号允许",
+      "status": "passed"
+    },
+    {
+      "label": "1500字争议处置原因实际保存",
+      "status": "passed"
+    }
+  ]
+}

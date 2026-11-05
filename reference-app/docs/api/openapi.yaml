@@ -5,7 +5,8 @@ info:
   description: |
     校园二手交易与物品流转平台后端接口。所有业务接口位于 /api。
     身份基于服务端 Session；所有非 GET 请求须带 X-CSRF-Token（由 GET /api/me、注册或登录响应下发）。
-    POST /api/orders 与 POST /api/orders/{id}/{action} 还须带 Idempotency-Key。
+    POST /api/orders 与 POST /api/orders/{id}/{action} 还须带 Idempotency-Key；
+    POST /api/items 与 PUT /api/items/{id} 可选带 Idempotency-Key，带标识时同一提交意图只成立一次。
     错误统一为 {"message": "..."}：400 输入或业务条件不满足、401 未登录、403 越权或 CSRF 失败、
     404 不存在、409 冲突或并发锁冲突、500 未预期异常、503 数据库不可用。
     时间均为 UTC ISO-8601（Z 结尾），金额为人民币元且保留两位小数。
@@ -165,8 +166,10 @@ paths:
                   $ref: '#/components/schemas/Item'
     post:
       summary: 发布物品（进入待审）
+      description: 可选带 Idempotency-Key；同一操作者、同一标识、相同内容的重复提交（含响应丢失后的重试）返回原物品，不重复创建；同一标识改变内容返回 400。不同标识仍是新发布。
       parameters:
         - $ref: '#/components/parameters/Csrf'
+        - $ref: '#/components/parameters/IdempotencyKeyOptional'
       requestBody:
         required: true
         content:
@@ -175,7 +178,7 @@ paths:
               $ref: '#/components/schemas/ItemInput'
       responses:
         '200':
-          description: 新建物品
+          description: 新建物品或同一标识的重放结果
           content:
             application/json:
               schema:
@@ -203,9 +206,11 @@ paths:
   /api/items/{id}:
     put:
       summary: 修改本人可修改物品（版本 +1 并重新审核）
+      description: 可选带 Idempotency-Key；同一操作者、同一标识、相同内容的重复提交返回原版本，不再次递增版本；同一标识改变内容返回 400。
       parameters:
         - $ref: '#/components/parameters/Id'
         - $ref: '#/components/parameters/Csrf'
+        - $ref: '#/components/parameters/IdempotencyKeyOptional'
       requestBody:
         required: true
         content:
@@ -214,7 +219,7 @@ paths:
               $ref: '#/components/schemas/ItemInput'
       responses:
         '200':
-          description: 更新后的物品
+          description: 更新后的物品或同一标识的重放结果（原版本）
           content:
             application/json:
               schema:
@@ -315,17 +320,62 @@ paths:
           $ref: '#/components/responses/Unauthorized'
   /api/favorites/{id}:
     post:
-      summary: 切换物品收藏状态
+      summary: 加入收藏（幂等）
+      description: 明确表达“收藏”意图：已是收藏时保持已收藏，重复请求不会反向取消。
       parameters:
         - $ref: '#/components/parameters/Id'
         - $ref: '#/components/parameters/Csrf'
       responses:
         '200':
-          description: 已切换
+          description: 已收藏
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Ok'
+                $ref: '#/components/schemas/FavoriteResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    delete:
+      summary: 取消收藏（幂等）
+      description: 明确表达“取消收藏”意图：未收藏时也成功，重复请求保持未收藏。
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Csrf'
+      responses:
+        '200':
+          description: 已取消收藏
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+    put:
+      summary: 明确设置收藏目标状态
+      parameters:
+        - $ref: '#/components/parameters/Id'
+        - $ref: '#/components/parameters/Csrf'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [favorite]
+              properties:
+                favorite:
+                  type: boolean
+                  description: true 为收藏，false 为取消；重复设置同一目标状态结果不变
+      responses:
+        '200':
+          description: 目标状态已生效
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FavoriteResult'
         '400':
           $ref: '#/components/responses/BadRequest'
         '403':
@@ -451,6 +501,23 @@ paths:
           $ref: '#/components/responses/NotFound'
         '409':
           $ref: '#/components/responses/Conflict'
+  /api/orders/{id}/details:
+    get:
+      summary: 当事人订单详情（进度、交付登记明细与评价）
+      description: 仅订单买方或卖方本人可读；delivery 为交付登记（操作者、说明与时间，未登记为 null），reviews 为脱敏后的本单评价。
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: 订单详情
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetails'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/orders/{id}/reviews:
     get:
       summary: 该订单的评价（含隐藏标记）
@@ -719,6 +786,9 @@ paths:
   /api/notifications:
     get:
       summary: 最近 100 条站内通知
+      description: |
+        每次调用先补投此前投递失败或尚未投递的待发送通知（失败记录按失败次数轮转重试，不永久丢弃），再返回本人最近 100 条通知。
+        业务提交后也会自动投递一次；补投失败只影响通知，不改变已成立的业务结果。
       responses:
         '200':
           description: 通知列表
@@ -755,8 +825,16 @@ paths:
                       $ref: '#/components/schemas/PublicUser'
                   disputes:
                     type: array
+                    description: 每条争议附带 title、stage（关联订单）与 evidence_log 补证记录
                     items:
-                      $ref: '#/components/schemas/Dispute'
+                      allOf:
+                        - $ref: '#/components/schemas/Dispute'
+                        - type: object
+                          properties:
+                            title:
+                              type: string
+                            stage:
+                              type: string
                   reports:
                     type: array
                     items:
@@ -770,8 +848,35 @@ paths:
                     items:
                       type: object
                       additionalProperties: true
+                  facts:
+                    type: array
+                    description: 处置事实（含对象类型、具体动作、结果、前后值、版本与原因），最近 200 条
+                    items:
+                      type: object
+                      additionalProperties: true
         '403':
           $ref: '#/components/responses/Forbidden'
+  /api/admin/orders/{id}/details:
+    get:
+      summary: 管理员订单核查视图
+      description: |
+        仅当该订单存在关联争议或订单举报时返回 {order,delivery,reviews}，否则 400；每次查看追加一条带管理员身份的处置事实与审计日志。
+        管理员不能冒用买方确认或评价，也不因此获得其他无关订单的访问权。
+      parameters:
+        - $ref: '#/components/parameters/Id'
+      responses:
+        '200':
+          description: 订单核查依据
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetails'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
   /api/admin/stats:
     get:
       summary: 业务统计（BR18 口径）
@@ -934,6 +1039,14 @@ components:
       in: header
       required: true
       description: '[A-Za-z0-9_-]{8,100}；同一操作者同一标识只成立一次业务结果，重放返回原订单'
+      schema:
+        type: string
+        pattern: '^[A-Za-z0-9_-]{8,100}$'
+    IdempotencyKeyOptional:
+      name: Idempotency-Key
+      in: header
+      required: false
+      description: '[A-Za-z0-9_-]{8,100}；带标识时同一操作者同一标识只产生一次业务效果：相同内容返回原物品/原版本，不同内容返回 400；不带标识按新提交处理'
       schema:
         type: string
         pattern: '^[A-Za-z0-9_-]{8,100}$'
@@ -1130,6 +1243,30 @@ components:
           $ref: '#/components/schemas/Time'
         completed_at:
           $ref: '#/components/schemas/Time'
+    OrderDetails:
+      type: object
+      properties:
+        order:
+          $ref: '#/components/schemas/Order'
+        delivery:
+          type: object
+          nullable: true
+          properties:
+            order_id:
+              type: string
+            actor_id:
+              type: string
+            actor_name:
+              type: string
+            note:
+              type: string
+              description: 交付登记说明
+            created_at:
+              $ref: '#/components/schemas/Time'
+        reviews:
+          type: array
+          items:
+            $ref: '#/components/schemas/Review'
     Review:
       type: object
       properties:
@@ -1175,6 +1312,22 @@ components:
         decision:
           type: string
           nullable: true
+        created_at:
+          $ref: '#/components/schemas/Time'
+        evidence_log:
+          type: array
+          description: 补证记录（按提交时间升序）；GET /api/disputes 与管理台 GET /api/admin/dashboard 的 disputes 均附带，原 evidence 不被改写
+          items:
+            $ref: '#/components/schemas/DisputeEvidence'
+    DisputeEvidence:
+      type: object
+      properties:
+        id:
+          type: string
+        author_id:
+          type: string
+        content:
+          type: string
         created_at:
           $ref: '#/components/schemas/Time'
     Report:
@@ -1235,6 +1388,18 @@ components:
           type: string
         created_at:
           $ref: '#/components/schemas/Time'
+    FavoriteResult:
+      type: object
+      description: 收藏操作结果；favorite 为期望/当前目标状态
+      properties:
+        ok:
+          type: boolean
+          example: true
+        favorite:
+          type: boolean
+          description: true 为已收藏，false 为未收藏
+        item_id:
+          type: string
     Verification:
       type: object
       properties:

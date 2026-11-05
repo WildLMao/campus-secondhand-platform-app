@@ -1,0 +1,38 @@
+PASS #4 退出/换号后有返回值与无返回值两条路径都清空私有表单与材料标识
+PASS #4 旧账户的迟到响应在换号后不得回填
+PASS #4 待认证标记：已登录进入个人中心，未登录打开登录框
+PASS #5 A 未知→处理 B→重试 A 仍用 K1；不同订单互不覆盖
+PASS #5 明确失败后编辑可用新意图；同账户不同内容不同 key
+PASS #5 账户隔离：B 不会拿到 A 的未决 key
+PASS #5/#1 局域网 HTTP 无 crypto.randomUUID 时回退，key 仍满足后端 [A-Za-z0-9_-]{8,100}
+PASS #1 发布/修改请求带 Idempotency-Key，同内容重试同 key
+PASS #1/#5 HTTP 网络错误可被识别为“结果未知”，4xx 为明确失败
+PASS #9 订单详情读取 {order,delivery,reviews}，缺失不伪造
+PASS #9 author_id 映射买卖双方名字
+PASS #9 本人已评不再显示提交入口（重新打开列表后，服务端已返回评价）
+PASS #9 评价提交成功后本地已评标记在重新读取前仍生效
+PASS 买方确认后真实刷新为已完成；卖方只有登记交付且没有改字“完成”入口
+PASS #8 收藏请求表达目标状态，重试同目标不会反向
+PASS 聊天 readOnly 来自服务端；enterAction 基本语义
+PASS composeAction：Enter 发送、Shift+Enter 换行、IME 忽略
+PASS 聊天多行输入：Enter 发送并阻止默认换行
+PASS 聊天多行输入：Shift+Enter 真正插入换行且不发送
+PASS 聊天多行输入：中文输入法 Enter 不误发也不拦截，组合结束后 Enter 才发送
+PASS 聊天只读时不发送；可写聊天使用多行 textarea
+PASS #11 统计只提交合法时间，统一毫秒 UTC；非法不请求
+PASS 发布校验与后端一致；提交体字段固定
+PASS #5 多槽位持久化：同一账户多个未决意图并存
+PASS #5 5xx/网关错误不释放 key：同内容重试仍用原 key
+PASS #5 仅成功或可证明无效果的 4xx 释放 key，之后编辑可获新意图
+PASS #4 换号清理旧 scope 的意图表与输入指纹，不触碰无关键
+PASS #6 治理详情：争议用 order_id，订单类举报用 object_id，物品举报不打开
+PASS #6 治理详情只读：不含确认收货/评价/写操作
+PASS #4 登录/表单弹窗没有背景自动关闭；关闭依赖明确按钮
+PASS #5 App.vue 不保留“有 status 就释放”的旧判定
+PASS 证据日志：原始 evidence 与 evidence_log 分开，补证按时间升序编号
+PASS 证据日志：缺失/非数组/空内容不伪造补充；无原始证据标注为空
+PASS 证据日志：补证人匹配不到只显示编号，不冒造姓名
+PASS 证据日志：原样字符串渲染，全模板不使用 v-html
+PASS 我的订单与管理台争议卡都渲染 evidence_log（补证人+时间）
+
+36 passed, 0 failed

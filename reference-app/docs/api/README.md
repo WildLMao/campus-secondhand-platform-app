@@ -12,7 +12,7 @@
 | 身份 | 基于服务端 Session（Cookie `JSESSIONID`，`HttpOnly`、`SameSite=Strict`，60 分钟空闲过期；HTTPS 交付时 `Secure`） |
 | 初始化令牌 | `GET /api/me` 返回当前用户（未登录为 `null`）与 `csrf`；注册/登录成功后更换会话标识并重新签发 `csrf` |
 | CSRF | 所有非 `GET/HEAD/OPTIONS` 的 `/api/**` 请求须带 `X-CSRF-Token: <csrf>`，缺失或不符返回 403 |
-| 幂等 | `POST /api/orders` 与 `POST /api/orders/{id}/{action}` 必须带 `Idempotency-Key`（`[A-Za-z0-9_-]{8,100}`）。同一操作者、同一标识只产生一次业务结果；重放返回原订单当前进度；同一标识改变操作或请求内容返回 400；不同操作者互不可见 |
+| 幂等 | `POST /api/orders` 与 `POST /api/orders/{id}/{action}` 必须带 `Idempotency-Key`（`[A-Za-z0-9_-]{8,100}`）。同一操作者、同一标识只产生一次业务结果；重放返回原订单当前进度；同一标识改变操作或请求内容返回 400；不同操作者互不可见。`POST /api/items` 与 `PUT /api/items/{id}` 可选带同一格式的 `Idempotency-Key`：同一操作者、同一标识、相同内容返回原物品/原版本，同一标识改变内容返回 400；不带标识按新提交处理 |
 | 响应 | 成功为 JSON（资产下载除外）；错误统一 `{"message":"中文原因"}` |
 | 状态码 | 400 输入/业务条件不满足；401 未登录；403 越权或 CSRF 失败；404 对象不存在；409 唯一约束冲突或并发锁冲突（本次未生效）；500 未预期异常；503 数据库不可用（健康检查） |
 | 金额 | JSON 数字，人民币元，两位小数；订单保存成立时快照，统计按快照求和 |
@@ -41,20 +41,23 @@
 | `POST /api/auth/logout` | 登录（需 CSRF） | 退出并失效会话 |
 | `GET /api/items` | 公开 | 关键词/分类检索，只返回符合 BR03 的在售物品 |
 | `GET /api/items/mine` | 本人 | 本人发布的全部物品（含历史状态） |
-| `POST /api/items` | 已认证、未受限 | 发布物品，进入 `待审` |
-| `PUT /api/items/{id}` | 物主 | 关键内容修改，版本 +1 并重新审核；有有效订单时拒绝 |
+| `POST /api/items` | 已认证、未受限 | 发布物品，进入 `待审`；可选 `Idempotency-Key`，同意图重试返回原物品 |
+| `PUT /api/items/{id}` | 物主 | 关键内容修改，版本 +1 并重新审核；有有效订单时拒绝；可选 `Idempotency-Key`，同意图重试返回原版本 |
 | `POST /api/items/{id}/withdraw` | 物主 | 撤下为 `已撤下`；无有效订单才允许 |
 | `GET /api/verifications` | 本人 | 本人认证申请历史（含退回原因） |
 | `POST /api/verifications` | 本人、未受限 | 提交认证材料 |
 | `GET /api/orders` | 本人 | 本人作为买方或卖方的订单 |
 | `POST /api/orders` | 已认证、未受限 | 下单建立订单与占用（需 `Idempotency-Key`） |
 | `POST /api/orders/{id}/{accept|reject|deliver|confirm|cancel|remind}` | 订单当事人 | 阶段操作（需 `Idempotency-Key`） |
+| `GET /api/orders/{id}/details` | 当事人 | 订单详情：`{order,delivery,reviews}`，含交付登记说明与时间 |
 | `GET /api/orders/{id}/reviews` | 当事人 | 该订单评价（含隐藏标记） |
 | `POST /api/orders/{id}/reviews` | 完成订单当事人 | 评价一次（1—5 分） |
 | `GET /api/favorites` | 本人 | 本人收藏 |
-| `POST /api/favorites/{id}` | 已认证、未受限 | 切换收藏；不产生占用 |
+| `POST /api/favorites/{id}` | 已认证、未受限 | 明确加入收藏（幂等，重复请求仍为已收藏）；不产生占用 |
+| `DELETE /api/favorites/{id}` | 本人 | 明确取消收藏（幂等，未收藏时也成功） |
+| `PUT /api/favorites/{id}` | 本人 | 设置目标状态 `{"favorite":true|false}`；与 POST/DELETE 一样返回 `{ok,favorite,item_id}` |
 | `GET /api/sellers/{id}/reviews` | 公开 | 卖方已公开评价 |
-| `GET /api/disputes` | 当事人 | 本人订单相关的履约争议 |
+| `GET /api/disputes` | 当事人 | 本人订单相关的履约争议；每条附 `evidence_log`（补证记录 `[{id,author_id,content,created_at}]`） |
 | `POST /api/orders/{id}/disputes` | 未结束订单当事人 | 申请履约争议，保留原阶段与占用 |
 | `POST /api/disputes/{id}/evidence` | 当事人 | 追加证据（争议未结案） |
 | `GET /api/reports` | 本人 | 本人提交的举报 |
@@ -62,8 +65,9 @@
 | `GET /api/messages?type=ITEM|ORDER&object={id}&peer={uid}` | 会话参与人 | 物品咨询（`ITEM`）或订单会话（`ORDER`）消息 |
 | `POST /api/messages?type=...` | 会话参与人 | 发送消息；终态订单只读；受限账户仅可继续旧单会话 |
 | `GET /api/inbox` | 本人 | 本人参与的会话入口 |
-| `GET /api/notifications` | 本人 | 最近 100 条站内通知 |
-| `GET /api/admin/dashboard` | 管理员 | 审核与治理列表（物品、认证、账户、争议、举报、评价、审计） |
+| `GET /api/notifications` | 本人 | 最近 100 条站内通知；调用前先补投待发送/此前失败的通知（失败记录按次数轮转重试，不永久丢弃） |
+| `GET /api/admin/dashboard` | 管理员 | 审核与治理列表（物品、认证、账户、争议、举报、评价、审计日志 `logs` 与处置事实 `facts`）；`disputes` 每条带 `title`、`stage` 与 `evidence_log` |
+| `GET /api/admin/orders/{id}/details` | 管理员（仅有关联争议/订单举报的订单） | 核查依据 `{order,delivery,reviews}`，查看留痕；否则 400 |
 | `GET /api/admin/stats?from=&to=` | 管理员 | 成交笔数/金额、发布数、举报数（BR18 口径） |
 | `POST /api/admin/{kind}/{id}` | 管理员 | 治理操作，`kind` 见下 |
 | `POST /api/assets` | 登录（`kind=ITEM` 需已认证未受限） | 上传图片，`multipart/form-data`，字段 `file`、`kind=ITEM|VERIFY` |

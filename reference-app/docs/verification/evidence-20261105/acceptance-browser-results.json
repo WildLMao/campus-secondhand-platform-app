@@ -1,0 +1,45 @@
+{
+  "checks": [
+    {
+      "label": "登录框背景点击保留账号输入",
+      "status": "passed"
+    },
+    {
+      "label": "订单详情显示交付及双方评价，已评无再次提交入口",
+      "status": "passed"
+    },
+    {
+      "label": "结束订单聊天实际不显示输入框",
+      "status": "passed"
+    },
+    {
+      "label": "争议原始证据及双方补证可见",
+      "status": "passed"
+    },
+    {
+      "label": "真实 textarea Shift+Enter 换行，Enter 只发送一次",
+      "status": "passed"
+    },
+    {
+      "label": "换账号清空发布草稿、密码与缓存私有状态",
+      "status": "passed"
+    },
+    {
+      "label": "#5 页面 500 后处理另一物品再重试仍使用原操作标识",
+      "status": "passed"
+    },
+    {
+      "label": "真实页面卖方接受并登记交付，买方确认完成并评价",
+      "status": "passed"
+    },
+    {
+      "label": "新注册账号的待认证按钮实际进入身份认证表单",
+      "status": "passed"
+    },
+    {
+      "label": "页面没有未捕获运行错误",
+      "status": "passed"
+    }
+  ],
+  "errors": []
+}
