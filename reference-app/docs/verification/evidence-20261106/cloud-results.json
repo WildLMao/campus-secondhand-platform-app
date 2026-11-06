@@ -1,0 +1,30 @@
+{
+  "release": "5bcb88c",
+  "checks": [
+    {
+      "label": "云端 MySQL 与 V5 迁移健康",
+      "status": "passed"
+    },
+    {
+      "label": "实际管理员可登录并读取管理台，未启用固定演示密码",
+      "status": "passed"
+    },
+    {
+      "label": "云端前端页面与静态资源实际加载",
+      "status": "passed"
+    },
+    {
+      "label": "浏览器实际登录管理台后可正常退出",
+      "status": "passed"
+    }
+  ],
+  "public_browser": {
+    "origin": "http://47.118.56.222/",
+    "status": 200,
+    "pageLoaded": true,
+    "errors": [],
+    "failed": []
+  },
+  "business_row_counts": "unchanged",
+  "database": "MySQL V5 UP"
+}
