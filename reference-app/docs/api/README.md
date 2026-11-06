@@ -36,10 +36,10 @@
 | --- | --- | --- |
 | `GET /api/health` | 公开 | 运行状态、数据库类型、已应用迁移版本 |
 | `GET /api/me` | 公开 | 当前用户与 CSRF 令牌 |
-| `POST /api/auth/register` | 公开（需 CSRF） | 注册；用户名 3—40 位字母数字下划线，密码 ≥8 位且 UTF-8 ≤72 字节 |
+| `POST /api/auth/register` | 公开（需 CSRF） | 注册；用户名 3—40 位字母数字下划线；密码**按原文保存、不 trim**（首尾空格是凭据一部分，登录须原样提供），按字符数 ≥8 且 UTF-8 ≤72 字节、不能全为空白，不合规直接 400，不静默改写 |
 | `POST /api/auth/login` | 公开（需 CSRF） | 登录，更换会话标识 |
 | `POST /api/auth/logout` | 登录（需 CSRF） | 退出并失效会话 |
-| `GET /api/items` | 公开 | 关键词/分类检索，只返回符合 BR03 的在售物品 |
+| `GET /api/items` | 公开 | 关键词/分类检索，只返回符合 BR03 的在售物品；**公开投影**仅含 `id,seller_id,seller_name,title,category,description,price,image_id,version,status,created_at`，不含管理员审核说明 `reason` 与 `hidden`、`relist_allowed` 等治理字段（本人 `/api/items/mine` 与管理台仍返回完整记录）。返回前按 BR14 对 `title`、`description` 与卖方公开昵称 `seller_name` 套用 `ImageGuard.mask`（与公开评价同一规则），历史已存内容同样脱敏；不改写库中原文，不处理价格/ID/分类，正常型号（如 `iPhone13`、`2024年购`）不被误伤 |
 | `GET /api/items/mine` | 本人 | 本人发布的全部物品（含历史状态） |
 | `POST /api/items` | 已认证、未受限 | 发布物品，进入 `待审`；可选 `Idempotency-Key`，同意图重试返回原物品 |
 | `PUT /api/items/{id}` | 物主 | 关键内容修改，版本 +1 并重新审核；有有效订单时拒绝；可选 `Idempotency-Key`，同意图重试返回原版本 |
@@ -52,7 +52,7 @@
 | `GET /api/orders/{id}/details` | 当事人 | 订单详情：`{order,delivery,reviews}`，含交付登记说明与时间 |
 | `GET /api/orders/{id}/reviews` | 当事人 | 该订单评价（含隐藏标记） |
 | `POST /api/orders/{id}/reviews` | 完成订单当事人 | 评价一次（1—5 分） |
-| `GET /api/favorites` | 本人 | 本人收藏 |
+| `GET /api/favorites` | 本人 | 本人收藏。物品当前仍公开可交易时返回 `{id,title,price,status,unavailable:false}`（`title` 同样按 `ImageGuard.mask` 脱敏）；否则只返回 `{id,unavailable:true}`（待审/隐藏/受限/撤回/有占用时不露出任何内容），收藏关系保留、仍可取消；恢复公开后展示最新内容 |
 | `POST /api/favorites/{id}` | 已认证、未受限 | 明确加入收藏（幂等，重复请求仍为已收藏）；不产生占用 |
 | `DELETE /api/favorites/{id}` | 本人 | 明确取消收藏（幂等，未收藏时也成功） |
 | `PUT /api/favorites/{id}` | 本人 | 设置目标状态 `{"favorite":true|false}`；与 POST/DELETE 一样返回 `{ok,favorite,item_id}` |
@@ -62,8 +62,8 @@
 | `POST /api/disputes/{id}/evidence` | 当事人 | 追加证据（争议未结案） |
 | `GET /api/reports` | 本人 | 本人提交的举报 |
 | `POST /api/reports` | 登录 | 举报物品/订单/账户 |
-| `GET /api/messages?type=ITEM|ORDER&object={id}&peer={uid}` | 会话参与人 | 物品咨询（`ITEM`）或订单会话（`ORDER`）消息 |
-| `POST /api/messages?type=...` | 会话参与人 | 发送消息；终态订单只读；受限账户仅可继续旧单会话 |
+| `GET /api/messages?type=ITEM|ORDER&object={id}&peer={uid}` | 会话参与人 | 物品咨询（`ITEM`）或订单会话（`ORDER`）消息。`ITEM` 咨询人规则：非卖方留空 `peer`，咨询人由认证身份确定（传非空且非本人的值 400）；卖方必须给真实咨询人，空值或从未咨询过该物品的用户 400。`ORDER` 忽略 `peer`。即时消息为参与者私聊，内容按原文返回（不做脱敏；公开评价的脱敏规则不变） |
+| `POST /api/messages?type=...` | 会话参与人 | 发送消息；终态订单只读；受限账户仅可继续旧单会话。`ITEM` 对买卖双方执行同一可用性判断（已下单/隐藏/受限/撤回/成交后双方均 400，请用订单会话），先锁账户再锁物品行、在锁后最新状态上判定 |
 | `GET /api/inbox` | 本人 | 本人参与的会话入口 |
 | `GET /api/notifications` | 本人 | 最近 100 条站内通知；调用前先补投待发送/此前失败的通知（失败记录按次数轮转重试，不永久丢弃） |
 | `GET /api/admin/dashboard` | 管理员 | 审核与治理列表（物品、认证、账户、争议、举报、评价、审计日志 `logs` 与处置事实 `facts`）；`disputes` 每条带 `title`、`stage` 与 `evidence_log` |
@@ -97,6 +97,9 @@
 5. 争议受理暂停接单、拒单与交付登记，保留查询与补证；已登记时买方仍可本人确认完成。
 6. 隐藏、账户限制与争议是独立标记；取消、解封、结案不会绕过其他条件恢复可售。
 7. 受限账户保留旧单查询、允许的取消/交付/收货、旧成交评价与举报，但不能新发布、新下单、收藏或新咨询。
+8. 物品咨询（`ITEM`）只读判断与发送使用同一“可公开咨询”规则，对买卖双方一致；参与者始终是“认证本人 ↔ 对方”，不因物品不可访问而放松。
+9. 公开读取（`GET /api/items`、`GET /api/favorites`）按字段投影：审核说明等治理字段不随公开列表下发，不可访问的收藏条目只返回占位。
+10. BR14：公开页不出现联系方式。公开物品的 `title`/`description`/`seller_name` 与可用收藏的 `title` 在返回前按 `ImageGuard.mask` 处理；本人 `/api/items/mine`、管理台与管理审核读取保持原文，库中数据不改写；私有会话消息不受影响。
 
 ## 5. 变更与联调
 

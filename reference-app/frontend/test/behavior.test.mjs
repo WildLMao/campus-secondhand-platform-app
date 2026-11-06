@@ -9,7 +9,7 @@ import { acquire, settle, peek, newKey, readIntents, classify, settleIfApplied, 
 import { enterAction, composing, composeAction } from '../src/iam.js';
 import { orderDetails, reviewRows, canReview, alreadyReviewed, addReview, actionsFor, showConfirmReceived, governanceOrderId } from '../src/orders.js';
 import { itemError, itemBody, priceError } from '../src/identity.js';
-import { emptyPrivate, accountChanged, staleFor, verifyAction } from '../src/session.js';
+import { emptyPrivate, accountChanged, staleFor, verifyAction, favoriteView } from '../src/session.js';
 import { statsQuery } from '../src/stats.js';
 import { evidenceLog, authorLabel, evidenceView } from '../src/evidence.js';
 
@@ -162,7 +162,7 @@ await test('买方确认后真实刷新为已完成；卖方只有登记交付�
   assert.deepEqual(actionsFor(delivered, { id: 'x' }), []);
 });
 
-await test('#8 收藏请求表达目标状态，重试同目标不会反向', async () => {
+await test('#8/#12 收藏请求表达目标状态，重试同目标不会反向', async () => {
   const api = await loadApi();
   const calls = [];
   globalThis.fetch = async (url, init) => { calls.push({ url, method: init.method, body: init.body }); return { ok: true, json: async () => ({ ok: true }) }; };
@@ -174,6 +174,28 @@ await test('#8 收藏请求表达目标状态，重试同目标不会反向', as
   assert.deepEqual(calls.map(c => JSON.parse(c.body).favorite), [true, true, false]);
 });
 
+// #12 收藏不可访问条目：后端只给 {id,unavailable:true} 时前端显示明确“暂不可用”，不猜测标题，仍可取消收藏。
+await test('#12 收藏不可访问条目显示“暂不可用”占位，可访问条目显示标题价格', () => {
+  const hidden = favoriteView({ id: 'item-1', unavailable: true });
+  assert.equal(hidden.id, 'item-1');
+  assert.equal(hidden.unavailable, true);
+  assert.equal(hidden.title, '该物品暂不可用');
+  assert.ok(!hidden.title.includes('NOT-APPROVED'), '不露出任何待审/隐藏内容');
+  assert.match(hidden.detail, /收藏已保留/);
+  const shown = favoriteView({ id: 'item-2', unavailable: false, title: '台灯', price: '25.5', status: '在售' });
+  assert.equal(shown.unavailable, false);
+  assert.equal(shown.title, '台灯');
+  assert.equal(shown.detail, '¥ 25.50 · 在售');
+  assert.equal(favoriteView({ id: 'legacy', title: '旧后端可访问', price: null, status: '在售' }).unavailable, false, '旧后端无字段但有标题→可访问');
+  assert.equal(favoriteView({ id: 'legacy2', price: '1.00', status: '在售' }).unavailable, true, '缺标题→不可用');
+  assert.equal(favoriteView(null).unavailable, true);
+  assert.equal(favoriteView(undefined).unavailable, true);
+  // 模板：不可用占位显示明确说明，且取消收藏按钮始终可用
+  const tpl = appSrc().slice(appSrc().indexOf('我的收藏'), appSrc().indexOf('</section>', appSrc().indexOf('我的收藏')));
+  assert.ok(tpl.includes('favoriteView(i).title') && tpl.includes('favoriteView(i).detail'), '收藏卡片使用占位投影');
+  assert.ok(tpl.includes('favorite(i,false)'), '不可访问期间仍可取消收藏');
+});
+
 await test('聊天 readOnly 来自服务端；enterAction 基本语义', () => {
   assert.equal(enterAction({ key: 'Enter' }), 'send');
   assert.equal(enterAction({ key: 'Enter', shiftKey: true }), 'newline');
@@ -183,6 +205,9 @@ await test('聊天 readOnly 来自服务端；enterAction 基本语义', () => {
   const src = appSrc();
   assert.ok(src.includes('c.readOnly=data.readOnly!==false'), 'readOnly 只认服务端字段');
   assert.ok(src.includes('/messages/context'), '读取会话上下文接口');
+  // #15 卖方发送时 chatState 携带真实咨询人；买方咨询由服务端按认证身份确定，前端不自行强塞 uid
+  assert.ok(src.includes('chatQuery(c)'), '读取与发送使用同一上下文参数');
+  assert.ok(!src.includes('peer:user.value.id') && !src.includes('peer:user.value?.id'), '不在前端把本人 uid 当作咨询人参数');
 });
 
 // 实际按键事件模拟：用 App.vue 中 onEnter 的真实函数体 + textarea 值模型驱动。

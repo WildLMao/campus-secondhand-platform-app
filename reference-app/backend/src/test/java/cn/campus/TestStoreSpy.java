@@ -20,6 +20,8 @@ import org.springframework.dao.DataAccessResourceFailureException;
  * 待投递记录等）保持真实；抛出的异常从真实 DB 调用之前发生，业务事务与投递用的 REQUIRES_NEW 事务都是真的。</li>
  * <li>pauseAfterDisputeHintRead(did, arrived, release)：让指定争议的第一次普通读取返回真实结果后挂起，
  * 用于确定性构造“补证已读旧状态→管理员结案→补证继续加锁”的并发时序。</li>
+ * <li>pauseAfterItemHintRead(iid, arrived, release)：让物品咨询发送的锁前普通读取返回真实结果后挂起，
+ * 用于确定性构造“发送已读到可写→并发下单提交→发送继续加锁并按锁后状态判定”的并发时序。</li>
  * </ul>
  *
  * 所有线程共享同一个 spy（Spring 注入的 @SpyBean），因此每个测试都不重启应用上下文。
@@ -31,6 +33,9 @@ final class TestStoreSpy {
     private static final AtomicInteger notificationFaults = new AtomicInteger();
     private static final ConcurrentHashMap<String, Object[]> pausedReads = new ConcurrentHashMap<>();
     private static final java.util.List<String> pauseHits = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+    /** 物品咨询发送的锁前“定位卖方”读取闸门；锁后 FOR UPDATE 读取不经过它，便于证明锁后判定生效。 */
+    private static final ConcurrentHashMap<String, Object[]> pausedItemHintReads = new ConcurrentHashMap<>();
+    private static final java.util.List<String> itemHintHits = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
 
     private static final AtomicInteger notificationInsertFailures = new AtomicInteger();
 
@@ -65,6 +70,16 @@ final class TestStoreSpy {
                 ((CountDownLatch) pause[1]).countDown();
                 if (!((CountDownLatch) pause[2]).await(20, TimeUnit.SECONDS))
                     throw new IllegalStateException("测试协调超时：补证线程未被放行");
+                return real;
+            }
+            var itemPause = did == null ? null : pausedItemHintReads.get(did);
+            if (itemPause != null && "select * from items where id=#{p.id}".equals(sql)
+                    && pausedItemHintReads.remove(did, itemPause)) {
+                Object real = inv.callRealMethod();
+                itemHintHits.add(did);
+                ((CountDownLatch) itemPause[1]).countDown();
+                if (!((CountDownLatch) itemPause[2]).await(20, TimeUnit.SECONDS))
+                    throw new IllegalStateException("测试协调超时：咨询发送线程未被放行");
                 return real;
             }
             return inv.callRealMethod();
@@ -109,9 +124,23 @@ final class TestStoreSpy {
         pausedReads.put(did, new Object[] { did, arrived, release });
     }
 
+    /**
+     * 物品咨询发送：让该物品不含 FOR UPDATE 的普通读取（锁前定位卖方）返回真实结果后挂起，
+     * 用于确定性构造“发送已读到可写→并发发起单提交→发送继续加锁”的并发时序。
+     */
+    static void pauseAfterItemHintRead(String iid, CountDownLatch arrived, CountDownLatch release) {
+        pausedItemHintReads.put(iid, new Object[] { iid, arrived, release });
+    }
+
+    static boolean itemReadPaused(String iid) {
+        return itemHintHits.contains(iid);
+    }
+
     static void clearPauses() {
         pausedReads.clear();
         pauseHits.clear();
+        pausedItemHintReads.clear();
+        itemHintHits.clear();
     }
 
     static boolean paused(String did) {

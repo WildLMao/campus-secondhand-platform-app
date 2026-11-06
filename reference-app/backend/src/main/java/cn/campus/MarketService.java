@@ -200,12 +200,21 @@ public class MarketService {
         });
     }
 
+    /**
+     * 注册。密码按原文处理：不 trim（首尾空格同样是凭据的一部分），与登录一样用原始字符串比对；
+     * 长度按字符数与 UTF-8 字节数分别校验：至少 8 个字符，且 UTF-8 不超过 72 字节（BCrypt 只处理前 72 字节）。
+     * 不合规时明确拒绝（400），绝不注册成功后再悄悄改写凭据。
+     */
     @Transactional
     public Map<String, Object> register(Map<String, Object> b) {
-        String username = text(b, "username", 40), password = text(b, "password", 72),
-                nickname = text(b, "nickname", 30);
+        String username = text(b, "username", 40), nickname = text(b, "nickname", 30);
+        // 只要求是字符串；保留原样（含首尾空格），由下方规则明确接受或拒绝。
+        Object raw = b.get("password");
+        require(raw instanceof String, "密码必须填写。");
+        String password = (String) raw;
         require(username.matches("[A-Za-z0-9_]{3,40}"), "账号使用 3—40 位字母、数字或下划线。");
-        require(password.length() >= 8, "密码至少 8 位。");
+        require(!password.isBlank(), "密码不能全部为空白字符。");
+        require(password.codePointCount(0, password.length()) >= 8, "密码至少 8 个字符。");
         require(password.getBytes(StandardCharsets.UTF_8).length <= 72, "密码 UTF-8 长度不能超过 72 字节。");
         String uid = id();
         db.exec("insert into accounts(id,username,password_hash,nickname,created_at) values(#{p.id},#{p.u},#{p.p},#{p.n},#{p.t})",
@@ -220,12 +229,35 @@ public class MarketService {
         return publicUser(u);
     }
 
+    /**
+     * 游客/普通用户可见的公开物品投影：按展示字段逐列列出，不返回管理员填写的审核说明 reason，
+     * 也不返回隐藏、重新提交许可等治理内部字段（隐藏/受限条目本身已被 where 排除）。
+     * 物主与管理端各自按权限读取完整记录。
+     */
+    static final String PUBLIC_ITEM_COLUMNS = "i.id,i.seller_id,i.title,i.category,i.description,i.price,i.image_id,i.version,i.status,i.created_at";
+
+    /**
+     * 公开物品返回前的联系方式脱敏（BR14）：只处理公开响应中的 title、description 与卖方公开昵称，
+     * 与公开评价读取时同一 ImageGuard.mask 规则；按读取值处理，历史已存内容同样受保护。
+     * 不改写库中原文，不影响价格、ID、分类、版本；本人与管理端读取完整记录时保持原文。
+     */
+    Map<String, Object> maskPublicItem(Map<String, Object> row) {
+        for (String k : List.of("title", "description", "seller_name"))
+            if (row.get(k) != null)
+                row.put(k, images.mask(s(row, k)));
+        return row;
+    }
+
+    /**
+     * 检索只按库中原文匹配（搜索词不经过脱敏），结果行在返回前按公开规则脱敏。
+     */
     public List<Map<String, Object>> market(String query, String category, int page) {
         return db.list(
-                "select i.*,a.nickname as seller_name from items i join accounts a on a.id=i.seller_id where i.status='在售' and i.hidden=0 and a.restricted=0 and not exists(select 1 from reservations r where r.item_id=i.id) and (i.title like #{p.q} or i.description like #{p.q})"
+                "select " + PUBLIC_ITEM_COLUMNS + ",a.nickname as seller_name from items i join accounts a on a.id=i.seller_id where i.status='在售' and i.hidden=0 and a.restricted=0 and not exists(select 1 from reservations r where r.item_id=i.id) and (i.title like #{p.q} or i.description like #{p.q})"
                         + (category.isBlank() ? "" : " and i.category=#{p.c}")
                         + " order by i.created_at desc limit 20 offset #{p.offset}",
-                p("q", "%" + query + "%", "c", category, "offset", Math.max(0, page - 1) * 20));
+                p("q", "%" + query + "%", "c", category, "offset", Math.max(0, page - 1) * 20)).stream()
+                .map(this::maskPublicItem).toList();
     }
 
     public List<Map<String, Object>> mine(String uid) {
@@ -505,10 +537,28 @@ public class MarketService {
         return p("ok", true, "favorite", adding, "item_id", iid);
     }
 
+    /**
+     * 本人收藏列表。只有当物品当前仍处于公开可见条件时（与 {@link #available} 同一规则）才返回
+     * 标题/价格/状态；否则该条只返回 {id,unavailable:true}，不露出待审/隐藏/受限/撤回后的任何内容。
+     * 收藏关系本身保留，买方仍可取消收藏；新版本通过审核并恢复公开后自动恢复展示最新内容。
+     */
     public List<Map<String, Object>> favorites(String uid) {
+        account(uid);
         return db.list(
-                "select i.id,i.title,i.price,i.status from favorites f join items i on i.id=f.item_id where f.user_id=#{p.u}",
-                p("u", uid));
+                "select f.item_id as id,i.title,i.price,i.status,i.hidden,a.restricted,r.item_id as reserved from favorites f left join items i on i.id=f.item_id "
+                        + "left join accounts a on a.id=i.seller_id left join reservations r on r.item_id=i.id "
+                        + "where f.user_id=#{p.u} order by f.item_id",
+                p("u", uid)).stream().map(row -> {
+                    // 行存在、物品仍公开、物主未受限且无占用：与可交易判断同一规则，二者任一不成立即视为不可访问。
+                    boolean accessible = row.get("title") != null && "在售".equals(s(row, "status"))
+                            && n(row, "hidden") == 0 && (row.get("restricted") == null || n(row, "restricted") == 0)
+                            && row.get("reserved") == null;
+                    // 可用条目的标题按公开规则脱敏（与 GET /api/items 一致）；价格、ID 原样。
+                    if (accessible)
+                        return p("id", row.get("id"), "title", images.mask(s(row, "title")), "price", row.get("price"),
+                                "status", row.get("status"), "unavailable", false);
+                    return p("id", row.get("id"), "unavailable", true);
+                }).toList();
     }
 
     @Transactional
@@ -651,27 +701,56 @@ public class MarketService {
         }
         require(type.equals("ITEM"), "会话类型无效。");
         var i = item(obj, false);
-        String seller = s(i, "seller_id");
-        String other = uid.equals(seller) ? buyer : seller;
-        require(!other.isBlank() && !uid.equals(other), "请选择咨询对象。");
-        if (uid.equals(seller)) {
-            require(db.one(
-                    "select id from messages where context_type='ITEM' and context_id=#{p.i} and sender_id=#{p.b} and receiver_id=#{p.s}",
-                    p("i", obj, "b", buyer, "s", seller)) != null, "咨询会话不存在。");
-        } else if (writing) {
+        return itemPeer(uid, obj, buyer, i, writing);
+    }
+
+    /**
+     * 物品咨询的参与者判定与写入可用性（物品行 i 由调用方在适当时机提供：读取不持锁，发送在锁后重新读取）。
+     *
+     * 咨询人（买方）的确定不依赖请求参数 peer：
+     * - 非卖方：咨询人就是通过认证的本人 uid，peer 为空（前端默认）正常，传了非空且≠本人的值明确拒绝 400；
+     * - 卖方：必须给出真实咨询人的 peer，且只能进入该咨询人确曾发起过的会话（空值拒绝）。
+     * 因此无论谁在读或写，实际读取/写入的都是“认证本人与对方”这一条会话，不读他人会话。
+     *
+     * 写入可用性对买卖双方一致：先校验参与者归属，再直接按统一可用性判断（运行期校验，防止并发状态
+     * 变化越过边界），不依赖角色先后。参与者关系不因物品不可访问而放松：未发起过咨询的人仍不能进入，
+     * 买卖双方也不因物品进入订单而获得原咨询之外的写权限。
+     * 受限账户读取本人历史消息仍然允许（受限不收回查询权），但不能写入任何会话。
+     */
+    String itemPeer(String uid, String obj, String buyer, Map<String, Object> i, boolean writing) {
+        String seller = s(i, "seller_id"), given = buyer == null ? "" : buyer.trim();
+        boolean sellerView = uid.equals(seller);
+        String inquirer;
+        if (sellerView) {
+            require(!given.isBlank() && !uid.equals(given), "请选择咨询对象。");
+            inquirer = given;
+        } else {
+            require(given.isBlank() || given.equals(uid), "不能访问他人的咨询会话。");
+            inquirer = uid;
+        }
+        // 会话是否存在：按咨询人 inquirer 与物主之间的真实记录判定；键必须带咨询人（不能只用 context_id）。
+        var inquiry = db.one(
+                "select id from messages where context_type='ITEM' and context_id=#{p.i} and sender_id=#{p.b} and receiver_id=#{p.s}",
+                p("i", obj, "b", inquirer, "s", seller));
+        if (sellerView)
+            // 卖方只能进入买方确曾发起过的咨询；没有任何消息的“新会话”不能由卖方凭对方 id 建立。
+            require(inquiry != null, "咨询会话不存在。");
+        else
+            require(available(i) || inquiry != null, "会话不可访问。");
+        if (writing) {
             eligible(uid);
             require(available(i), "物品已不可公开咨询，请使用对应订单会话。");
-        } else
-            require(available(i) || db.one(
-                    "select id from messages where context_type='ITEM' and context_id=#{p.i} and sender_id=#{p.u}",
-                    p("i", obj, "u", uid)) != null, "会话不可访问。");
-        if (writing)
-            eligible(uid);
-        return other;
+        }
+        return sellerView ? inquirer : seller;
     }
 
     public List<Map<String, Object>> messages(String uid, String type, String obj, String buyer) {
         String other = peer(uid, type, obj, buyer, false);
+        return messageList(uid, type, obj, other);
+    }
+
+    /** 会话双方之间的消息（参与者已由 {@link #peer} 校验）；即时消息按原文返回，不做脱敏。 */
+    List<Map<String, Object>> messageList(String uid, String type, String obj, String other) {
         return db.list(
                 "select m.*,a.nickname as sender_name from messages m join accounts a on a.id=m.sender_id where context_type=#{p.ty} and context_id=#{p.i} and ((sender_id=#{p.u} and receiver_id=#{p.o}) or (sender_id=#{p.o} and receiver_id=#{p.u})) order by created_at,id",
                 p("ty", type, "i", obj, "u", uid, "o", other));
@@ -679,7 +758,8 @@ public class MarketService {
 
     /** 会话上下文：消息 + 服务端判定的只读状态（终态订单只读，服务端仍拒绝发送）。 */
     public Map<String, Object> context(String uid, String type, String obj, String buyer) {
-        List<Map<String, Object>> rows = messages(uid, type, obj, buyer);
+        String other = peer(uid, type, obj, buyer, false);
+        List<Map<String, Object>> rows = messageList(uid, type, obj, other);
         boolean readOnly;
         if (type.equals("ORDER")) {
             var o = order(uid, obj, false);
@@ -690,13 +770,24 @@ public class MarketService {
         return p("messages", rows, "readOnly", readOnly, "context_type", type, "context_id", obj);
     }
 
+    /**
+     * 订单按 {@link #lockOrder} 的统一顺序加锁后判定；
+     * 物品咨询先锁账户再对物品行加锁（SELECT ... FOR UPDATE），在锁后的最新读取上判定参与者与可用性，
+     * 因此发起单、审核状态、隐藏、账户限制等并发变化不会让发送越过只读边界。
+     */
     @Transactional
     public void message(String uid, String type, String obj, String buyer, Map<String, Object> b) {
-        if (type.equals("ORDER"))
+        String other;
+        if (type.equals("ORDER")) {
             lockOrder(uid, obj, false);
-        else
-            lockAccounts(uid);
-        String other = peer(uid, type, obj, buyer, true);
+            other = peer(uid, type, obj, buyer, true);
+        } else {
+            require(type.equals("ITEM"), "会话类型无效。");
+            var hint = item(obj, false);
+            lockAccounts(uid, s(hint, "seller_id"));
+            var i = item(obj, true);
+            other = itemPeer(uid, obj, buyer, i, true);
+        }
         db.exec("insert into messages(id,context_type,context_id,sender_id,receiver_id,content,created_at) values(#{p.id},#{p.ty},#{p.i},#{p.u},#{p.o},#{p.c},#{p.t})",
                 p("id", id(), "ty", type, "i", obj, "u", uid, "o", other, "c", text(b, "content", 1500), "t", now()));
         notify("message:" + id(), other, "收到一条新消息。");
@@ -704,6 +795,7 @@ public class MarketService {
     }
 
     public List<Map<String, Object>> inbox(String uid) {
+        account(uid);
         return db.list(
                 "select distinct m.context_type,m.context_id,case when m.sender_id=#{p.u} then m.receiver_id else m.sender_id end as peer_id from messages m where sender_id=#{p.u} or receiver_id=#{p.u}",
                 p("u", uid));

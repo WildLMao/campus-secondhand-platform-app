@@ -68,7 +68,10 @@ paths:
                 password:
                   type: string
                   minLength: 8
-                  description: UTF-8 不超过 72 字节
+                  description: |
+                    按原文保存，不做 trim：首尾空格是凭据的一部分，登录时必须原样提供。
+                    至少 8 个字符（code point），UTF-8 不超过 72 字节，不能全为空白；否则注册直接 400 拒绝，绝不注册后再改写。
+                    以字符串接收（数字等非字符串返回 400）。
                 nickname:
                   type: string
                   maxLength: 30
@@ -157,13 +160,18 @@ paths:
             default: 1
       responses:
         '200':
-          description: 每页 20 条
+          description: |
+            每页 20 条。按字段列出的公开投影：id, seller_id, seller_name, title, category, description,
+            price, image_id, version, status, created_at；不返回 reason（管理员审核说明）及 hidden、
+            relist_allowed 等治理内部字段。BR14：title、description 与 seller_name 返回前按
+            ImageGuard.mask 脱敏（与公开评价同一规则），历史已存内容同样处理；库中原文不改写，
+            价格/ID 不处理，正常型号（如 iPhone13）不受影响。本人 /api/items/mine 与管理台保持原文。
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  $ref: '#/components/schemas/Item'
+                  $ref: '#/components/schemas/PublicItem'
     post:
       summary: 发布物品（进入待审）
       description: 可选带 Idempotency-Key；同一操作者、同一标识、相同内容的重复提交（含响应丢失后的重试）返回原物品，不重复创建；同一标识改变内容返回 400。不同标识仍是新发布。
@@ -298,24 +306,19 @@ paths:
   /api/favorites:
     get:
       summary: 本人收藏
+      description: |
+        收藏关系始终保留。只有当物品当前仍公开可交易时（与市场同一规则：在售、未隐藏、物主未受限、无占用）
+        才返回 title/price/status；否则该条只返回 {id, unavailable:true}，不露出待审/隐藏/受限/撤回后的任何内容。
+        新版本通过审核、恢复公开后自动展示最新内容；期间仍可 DELETE/PUT 取消收藏。
       responses:
         '200':
-          description: 收藏物品摘要
+          description: 收藏摘要（可访问条目含内容，不可访问条目为 id+unavailable 占位）
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                    title:
-                      type: string
-                    price:
-                      type: number
-                    status:
-                      type: string
+                  $ref: '#/components/schemas/FavoriteEntry'
         '401':
           $ref: '#/components/responses/Unauthorized'
   /api/favorites/{id}:
@@ -707,10 +710,13 @@ paths:
           in: query
           schema:
             type: string
-            description: 物品咨询时指定对方；订单会话自动取另一方
+            description: |
+              ITEM：非卖方（咨询人）可留空，咨询人由认证身份确定；传非空且不是本人的值返回 400。
+              卖方必须给出真实咨询人（买方）的 id：空值或从未咨询过该物品的用户返回 400。
+              ORDER：忽略，另一方由订单自动确定。
       responses:
         '200':
-          description: 消息列表
+          description: 消息列表；会话为参与者私聊，消息内容按原文返回（不脱敏）。
           content:
             application/json:
               schema:
@@ -723,6 +729,10 @@ paths:
           $ref: '#/components/responses/Forbidden'
     post:
       summary: 发送消息
+      description: |
+        ITEM 咨询对买卖双方执行同一可用性判断：物品不可公开咨询（已下单、隐藏、物主受限、撤回、已成交等）时
+        双方发送均返回 400，历史仍可读；有效订单请使用 ORDER 专用会话。写入前先锁账户再对物品行加锁，
+        并在锁后的最新状态上判定，并发下单不会让发送越过只读边界。参与者规则同 GET。
       parameters:
         - name: type
           in: query
@@ -739,6 +749,7 @@ paths:
           in: query
           schema:
             type: string
+            description: ITEM 同 GET 的 peer 规则（非卖方空值由认证身份确定，卖方必须给真实咨询人）；ORDER 忽略
         - $ref: '#/components/parameters/Csrf'
       requestBody:
         required: true
@@ -1144,8 +1155,42 @@ components:
         restricted:
           type: integer
           enum: [0, 1]
+    PublicItem:
+      type: object
+      description: |
+        GET /api/items 的公开投影：仅展示字段，不含审核说明 reason 与 hidden/relist_allowed 等治理字段。
+        title、description、seller_name 返回前按 ImageGuard.mask 脱敏（BR14），联系方式替换为 [联系方式已隐藏]。
+      properties:
+        id:
+          type: string
+        seller_id:
+          type: string
+        seller_name:
+          type: string
+          description: 卖方公开昵称，按公开规则脱敏
+        title:
+          type: string
+          description: 按公开规则脱敏（库中原文不改写）
+        category:
+          $ref: '#/components/schemas/Category'
+        description:
+          type: string
+          description: 按公开规则脱敏（库中原文不改写）
+        price:
+          $ref: '#/components/schemas/Money'
+        image_id:
+          type: string
+          nullable: true
+        version:
+          type: integer
+        status:
+          type: string
+          enum: [在售]
+        created_at:
+          $ref: '#/components/schemas/Time'
     Item:
       type: object
+      description: 本人（/api/items/mine）与管理台（dashboard.items）可见的完整记录，含 reason 与 hidden、relist_allowed。
       properties:
         id:
           type: string
@@ -1176,6 +1221,7 @@ components:
         reason:
           type: string
           nullable: true
+          description: 管理员填写的审核说明（治理/本人可见），不在 GET /api/items 的公开投影中出现
         relist_allowed:
           type: integer
           enum: [0, 1]
@@ -1388,6 +1434,26 @@ components:
           type: string
         created_at:
           $ref: '#/components/schemas/Time'
+    FavoriteEntry:
+      type: object
+      description: |
+        GET /api/favorites 的条目。可访问：{id,title,price,status,unavailable:false}；
+        不可访问（待审/审核退回/隐藏/物主受限/已撤下/有占用等，与市场“可交易”同一规则）：
+        只返回 {id,unavailable:true}，保证收藏关系保留、可取消，同时不露出任何内容。
+      required: [id, unavailable]
+      properties:
+        id:
+          type: string
+        unavailable:
+          type: boolean
+        title:
+          type: string
+          description: 仅 unavailable=false 时返回；按 ImageGuard.mask 脱敏（与公开物品同一规则，库中原文不改写）
+        price:
+          $ref: '#/components/schemas/Money'
+        status:
+          type: string
+          description: 仅 unavailable=false 时返回（此时恒为“在售”）
     FavoriteResult:
       type: object
       description: 收藏操作结果；favorite 为期望/当前目标状态

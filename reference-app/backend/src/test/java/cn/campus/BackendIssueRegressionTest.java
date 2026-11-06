@@ -9,6 +9,7 @@ import java.math.BigDecimal;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.StreamSupport;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -130,6 +131,20 @@ class BackendIssueRegressionTest {
         s.setAttribute("uid", uid(name));
         s.setAttribute("csrf", "csrf-" + name);
         return s;
+    }
+
+    /** 以账户 id 直接构造会话（用于运行期注册的新账户）。 */
+    MockHttpSession sessionOf(String userId) {
+        var s = new MockHttpSession();
+        s.setAttribute("uid", userId);
+        s.setAttribute("csrf", "csrf-" + userId);
+        return s;
+    }
+
+    /** 新会话：先经真实 GET /api/me 取得由服务端签发的 CSRF，再用于写请求。 */
+    MockHttpSession freshSession() throws Exception {
+        var res = mvc.perform(get("/api/me")).andExpect(status().isOk()).andReturn();
+        return (MockHttpSession) res.getRequest().getSession();
     }
 
     int notifications(String user, String contains) {
@@ -988,6 +1003,506 @@ class BackendIssueRegressionTest {
         assertEquals(0, ((Number) db.one("select count(*) as c from notification_outbox where status<>'SENT' and user_id in (#{p.s},#{p.b})",
                 p("s", seller, "b", buyer)).get("c")).intValue(), "未发送记录应全部清空");
         mvc.perform(get("/api/notifications")).andExpect(status().isUnauthorized());
+    }
+
+    // ---------------- 2026-11-06 新 Issue #12～#15（真实 Controller/Service/事务） ----------------
+
+    static String reasonOf(String iid, Store db) {
+        return s(db.one("select reason from items where id=#{p.i}", p("i", iid)), "reason");
+    }
+
+    /**
+     * #14 公开商品查询按字段列出：管理员审核说明不随公开响应下发。
+     * 审核说明只写在审核说明里（描述为 demo），游客/普通买方检索均找不到原文；本人仍可读；
+     * 管理员仍能查询原审核记录与处置事实。
+     */
+    @Test
+    @Order(30)
+    void publicMarketProjectionExcludesReviewNotesForGuestsAndBuyers() throws Exception {
+        // 真实待审夹具：发布后未审核；描述只填 demo，测试文本只写进管理员审核说明
+        var pending = pendingItem();
+        String iid = s(pending, "id");
+        assertEquals("待审", s(pending, "status"));
+        String probeTitle = "公开投影探测 " + id().substring(0, 8);
+        // 与主审 privacy-probe 同形：描述里写入联系方式（含正常型号 “iPhone13” 不应被误伤）
+        String leadDescription = "联系 13800138000 或 test@example.com";
+        String cleanDescription = "iPhone13 备用机，成色很好，2024年购";
+        service.saveItem(seller(), iid, p("title", probeTitle, "category", "教材书籍",
+                "description", leadDescription, "price", "32.00", "image_id", pending.get("image_id")));
+        var toApprove = service.item(iid, false);
+        String note = "REVIEW_ONLY_STUDENT_NO_SYNTH_" + id().replace("-", "").substring(0, 8);
+        service.manage(admin(), "item", iid, p("reason", "审核通过 " + note, "pass", true, "version", toApprove.get("version")));
+        String marked = reasonOf(iid, db);
+        assertTrue(marked.contains(note), "审核说明确实保存了测试文本");
+        assertEquals("在售", s(service.item(iid, false), "status"));
+        String hiddenProbe = s(toApprove, "title");
+
+        var guest = mvc.perform(get("/api/items").param("q", hiddenProbe)).andExpect(status().isOk()).andReturn();
+        var guestBody = om.readTree(guest.getResponse().getContentAsString());
+        assertEquals(1, guestBody.size(), "游客应能检索到该公开物品");
+        var row = guestBody.get(0);
+        assertEquals(Set.of("id", "seller_id", "title", "category", "description", "price", "image_id", "version",
+                "status", "created_at", "seller_name"), fieldNames(row), "公开商品只返回展示字段：不返回 reason 等治理字段");
+        assertFalse(row.has("reason"), "公开响应不含审核说明字段");
+        assertFalse(guest.getResponse().getContentAsString().contains(note), "游客响应中找不到审核说明原文");
+        assertEquals(iid, row.get("id").asText());
+        assertEquals("在售", row.get("status").asText());
+        // BR14：公开描述中的联系方式按 ImageGuard.mask 脱敏（历史已存内容同样受保护），价格/ID 不变
+        assertFalse(row.get("description").asText().contains("13800138000"), "公开描述不得原样返回手机号");
+        assertFalse(row.get("description").asText().contains("test@example.com"), "公开描述不得原样返回邮箱");
+        assertTrue(row.get("description").asText().contains("[联系方式已隐藏]"), "替换为占位说明：" + row.get("description"));
+        assertEquals(0, row.get("price").decimalValue().compareTo(new BigDecimal("32.00")), "价格不改写");
+        assertEquals(iid, row.get("id").asText(), "ID 不改写");
+        assertEquals(probeTitle, row.get("title").asText(), "不含联系方式的标题原样返回");
+        assertEquals(leadDescription, s(service.item(iid, false), "description"), "库中原文不被改写（不存在读写回写）");
+
+        // 正常型号/年份不被误伤：仅含 “iPhone13”“2024年购” 的描述原样公开
+        var cleanPending = pendingItem();
+        String cleanId = s(cleanPending, "id");
+        service.saveItem(seller(), cleanId, p("title", "iPhone13 备用机", "category", "数码配件", "description",
+                cleanDescription, "price", "999.00", "image_id", cleanPending.get("image_id")));
+        var clean = service.item(cleanId, false);
+        service.manage(admin(), "item", cleanId, p("reason", "正常型号", "pass", true, "version", clean.get("version")));
+        var cleanBody = om.readTree(mvc.perform(get("/api/items").param("q", "iPhone13")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        var cleanRow = StreamSupport.stream(cleanBody.spliterator(), false)
+                .filter(r -> cleanId.equals(r.get("id").asText())).findFirst().orElseThrow();
+        assertEquals(cleanDescription, cleanRow.get("description").asText(), "正常型号与年份不被误伤");
+        assertEquals("iPhone13 备用机", cleanRow.get("title").asText());
+
+        var buyerBody = mvc.perform(get("/api/items").param("q", hiddenProbe).session(session("buyer")))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertFalse(buyerBody.contains(note), "普通买方检索响应同样找不到审核说明");
+        assertFalse(buyerBody.contains("13800138000") || buyerBody.contains("test@example.com"),
+                "普通买方检索响应同样不原样返回联系方式");
+        var all = mvc.perform(get("/api/items")).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertFalse(all.contains(note), "未带检索词的公开列表也不含审核说明");
+
+        // 本人与管理端各自按权限读取说明
+        var own = om.readTree(mvc.perform(get("/api/items/mine").session(session("seller"))).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString());
+        var ownRow = StreamSupport.stream(own.spliterator(), false).filter(r -> iid.equals(r.get("id").asText()))
+                .findFirst().orElse(null);
+        assertNotNull(ownRow, "物主列表应包含该物品");
+        assertTrue(ownRow.get("reason").asText().contains(note), "物主仍可读取本人的审核说明");
+        assertEquals(leadDescription, ownRow.get("description").asText(), "物主读取本人描述保持原文（不脱敏）");
+        String mineRaw = mvc.perform(get("/api/items/mine").session(session("seller"))).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertTrue(mineRaw.contains("13800138000"), "物主「我的发布」保留原文联系方式");
+        var dash = mvc.perform(get("/api/admin/dashboard").session(session("admin"))).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        assertTrue(dash.contains(note), "管理员仍能查询原审核记录");
+        assertTrue(dash.contains("13800138000") && dash.contains("test@example.com"),
+                "管理台审核读取描述保持原文（不脱敏），便于核查");
+        assertEquals(1, db.list("select id from audit_facts where object_type='ITEM' and object_id=#{p.i} and reason like #{p.n}",
+                p("i", iid, "n", "%" + note + "%")).size(), "审核处置事实保留原说明");
+    }
+
+    /**
+     * #12 收藏不可访问条目：保留收藏关系，只返回 {id,unavailable:true}，不露出待审/隐藏/受限/撤回后的内容。
+     * 新版本通过审核恢复公开后展示最新内容；期间仍可取消收藏。
+     */
+    @Test
+    @Order(31)
+    void favoritesHideContentsOfInaccessibleItemsAndRecoverAfterApproval() throws Exception {
+        String collector = registered("favuser");
+        var session = sessionOf(collector);
+        String csrf = "csrf-" + collector;
+        var i = onSale();
+        String iid = s(i, "id");
+        mvc.perform(post("/api/favorites/" + iid).session(session).header("X-CSRF-Token", csrf)).andExpect(status().isOk());
+        // 另一件收藏：标题里含联系方式（合法标题长度内），可用收藏的标题按公开规则脱敏（BR14）
+        var contactItem = onSale();
+        String contactId = s(contactItem, "id");
+        var titled = service.saveItem(seller(), contactId, p("title", "台灯 微信 abc_12345 联系", "category", "宿舍生活",
+                "description", "正常描述", "price", "39.00", "image_id", contactItem.get("image_id")));
+        service.manage(admin(), "item", contactId, p("reason", "标题含联系方式", "pass", true, "version", titled.get("version")));
+        mvc.perform(post("/api/favorites/" + contactId).session(session).header("X-CSRF-Token", csrf)).andExpect(status().isOk());
+
+        com.fasterxml.jackson.databind.JsonNode favOf = om.readTree(mvc.perform(get("/api/favorites").session(session))
+                .andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        var visible = StreamSupport.stream(favOf.spliterator(), false).filter(r -> iid.equals(r.get("id").asText()))
+                .findFirst().orElseThrow();
+        assertEquals(s(i, "title"), visible.get("title").asText());
+        assertEquals(false, visible.get("unavailable").asBoolean());
+        var contactRow = StreamSupport.stream(favOf.spliterator(), false).filter(r -> contactId.equals(r.get("id").asText()))
+                .findFirst().orElseThrow();
+        assertEquals(false, contactRow.get("unavailable").asBoolean());
+        assertFalse(contactRow.get("title").asText().contains("abc_12345"), "可用收藏标题不得原样返回社交账号");
+        assertTrue(contactRow.get("title").asText().contains("台灯"), "标题正文保留：" + contactRow.get("title"));
+        assertEquals(0, contactRow.get("price").decimalValue().compareTo(new BigDecimal("39.00")), "收藏价格不改写");
+        assertEquals("台灯 微信 abc_12345 联系", s(service.item(contactId, false), "title"), "库中标题原文不被改写");
+
+        // 卖方修改并重新提交（未审核）：原收藏者不得看到新标题/新价格
+        String newTitle = "NOT-APPROVED-REVIEW-" + id().substring(0, 8);
+        var edited = service.saveItem(seller(), iid, p("title", newTitle, "category", "教材书籍", "description",
+                "修改后等待审核", "price", "123.45", "image_id", i.get("image_id")));
+        favOf = om.readTree(mvc.perform(get("/api/favorites").session(session)).andExpect(status().isOk()).andReturn()
+                .getResponse().getContentAsString());
+        String raw = favOf.toString();
+        assertFalse(raw.contains(newTitle), "待审新标题不得出现在收藏列表");
+        assertFalse(raw.contains("123.45"), "待审新价格不得出现在收藏列表");
+        assertFalse(raw.contains("待审"), "收藏列表不得暴露待审状态");
+        var hidden = StreamSupport.stream(favOf.spliterator(), false).filter(r -> iid.equals(r.get("id").asText()))
+                .findFirst().orElseThrow();
+        assertEquals(Set.of("id", "unavailable"), fieldNames(hidden), "不可访问时只返回 id + unavailable 占位");
+        assertTrue(hidden.get("unavailable").asBoolean());
+        // 公开市场已看不到该物品；本人列表仍可看到完整内容（物主权限）
+        assertEquals(0, om.readTree(mvc.perform(get("/api/items").param("q", newTitle)).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString()).size(), "待审商品已从市场消失");
+
+        // 管理员退回：说明与状态也不能从收藏列表泄露
+        service.manage(admin(), "item", iid, p("reason", "退回说明仅治理可见", "pass", false, "version", edited.get("version")));
+        raw = mvc.perform(get("/api/favorites").session(session)).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString();
+        assertFalse(raw.contains("退回说明仅治理可见") || raw.contains("审核退回"));
+
+        // 恢复公开前仍可取消收藏；重新加入也只能得到占位（加入要求物品可访问，这里直接验证取消）
+        mvc.perform(delete("/api/favorites/" + iid).session(session).header("X-CSRF-Token", csrf)).andExpect(status().isOk())
+                .andExpect(jsonPath("$.favorite").value(false));
+        assertEquals(0, db.list("select * from favorites where user_id=#{p.u} and item_id=#{p.i}", p("u", collector, "i", iid)).size(),
+                "不可访问期间可取消收藏");
+        // 重新收藏需要恢复在售
+        var again = service.saveItem(seller(), iid, p("title", newTitle, "category", "教材书籍", "description",
+                "再次提交", "price", "123.45", "image_id", i.get("image_id")));
+        mvc.perform(post("/api/favorites/" + iid).session(session).header("X-CSRF-Token", csrf)).andExpect(status().isBadRequest());
+        service.manage(admin(), "item", iid, p("reason", "新版本通过", "pass", true, "version", again.get("version")));
+        mvc.perform(post("/api/favorites/" + iid).session(session).header("X-CSRF-Token", csrf)).andExpect(status().isOk());
+        favOf = om.readTree(mvc.perform(get("/api/favorites").session(session)).andExpect(status().isOk()).andReturn()
+                .getResponse().getContentAsString());
+        var restored = StreamSupport.stream(favOf.spliterator(), false).filter(r -> iid.equals(r.get("id").asText()))
+                .findFirst().orElseThrow();
+        assertEquals(newTitle, restored.get("title").asText(), "恢复公开后展示最新内容");
+        assertEquals(false, restored.get("unavailable").asBoolean());
+        assertFalse(favOf.toString().contains(reasonOf(iid, db) == null ? "\u0000" : reasonOf(iid, db)),
+                "收藏列表不含审核说明");
+
+        // 隐藏 / 物主受限：独立标记同样只显示占位
+        service.manage(admin(), "hide", iid, p("reason", "独立隐藏", "hidden", true));
+        raw = mvc.perform(get("/api/favorites").session(session)).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString();
+        assertFalse(raw.contains(newTitle), "隐藏后不得露出标题");
+        service.manage(admin(), "hide", iid, p("reason", "解除隐藏", "hidden", false));
+        service.manage(admin(), "restrict", seller(), p("reason", "临时限制", "restricted", true));
+        try {
+            raw = mvc.perform(get("/api/favorites").session(session)).andExpect(status().isOk()).andReturn().getResponse()
+                    .getContentAsString();
+            assertFalse(raw.contains(newTitle), "物主受限后不得露出标题");
+        } finally {
+            service.manage(admin(), "restrict", seller(), p("reason", "解除限制", "restricted", false));
+        }
+        // 撤下：卖方先撤下，再修改会保留“已撤下”前的版本？撤下物品状态为已撤下，收藏者只看到占位；可取消
+        service.withdraw(seller(), iid);
+        favOf = om.readTree(mvc.perform(get("/api/favorites").session(session)).andExpect(status().isOk()).andReturn()
+                .getResponse().getContentAsString());
+        var withdrawn = StreamSupport.stream(favOf.spliterator(), false).filter(r -> iid.equals(r.get("id").asText()))
+                .findFirst().orElseThrow();
+        assertEquals(Set.of("id", "unavailable"), fieldNames(withdrawn), "撤回后只返回占位");
+        assertFalse(favOf.toString().contains("已撤下"));
+        mvc.perform(delete("/api/favorites/" + iid).session(session).header("X-CSRF-Token", csrf)).andExpect(status().isOk());
+        // 他人收藏不受影响：别的用户没有关系
+        assertTrue(service.favorites(buyer()).stream().noneMatch(r -> iid.equals(s(r, "id"))));
+        mvc.perform(get("/api/favorites")).andExpect(status().isUnauthorized());
+    }
+
+    /** 注册一个已通过认证的新账户（真实 register + 管理员认证），用于不污染公共夹具。 */
+    String registered(String prefix) {
+        String name = prefix + id().replace("-", "").substring(0, 10);
+        String u = s(service.register(p("username", name, "password", "BranchPass123!", "nickname", prefix + "用户")), "id");
+        String aid = id();
+        db.exec("insert into assets(id,owner_id,kind,media_type,created_at) values(#{p.id},#{p.u},'VERIFY','image/png',#{p.t})",
+                p("id", aid, "u", u, "t", now()));
+        service.verify(u, p("student_no", "T-" + id(), "real_name", "测试", "asset_id", aid));
+        service.manage(admin(), "verification", s(service.verifications(u).get(0), "id"),
+                p("reason", "回归认证通过", "pass", true));
+        return u;
+    }
+
+    /**
+     * #13 注册密码保留原文（首尾空格属于凭据）：注册成功即可用原样密码登录；
+     * 去空格后的写法不能登录；不 trim，字符串与 UTF-8 字节限制在注册时明确拒绝而非静默改写。
+     */
+    @Test
+    @Order(32)
+    void registrationKeepsPasswordVerbatimAndLoginMatches() throws Exception {
+        String name = "trimpw" + id().replace("-", "").substring(0, 10);
+        String password = " BranchPass123! ";
+        assertEquals(16, password.length());
+        var res = mvc.perform(get("/api/me")).andExpect(status().isOk()).andReturn();
+        var session = (MockHttpSession) res.getRequest().getSession();
+        String csrf = (String) session.getAttribute("csrf");
+        mvc.perform(post("/api/auth/register").session(session).header("X-CSRF-Token", csrf)
+                .contentType("application/json")
+                .content(om.writeValueAsString(p("username", name, "password", password, "nickname", "空格密码"))))
+                .andExpect(status().isOk());
+        // 退出后开新会话，用原样 16 字符密码登录
+        var fresh = freshSession();
+        String freshCsrf = (String) fresh.getAttribute("csrf");
+        mvc.perform(post("/api/auth/login").session(fresh).header("X-CSRF-Token", freshCsrf)
+                .contentType("application/json").content(om.writeValueAsString(p("username", name, "password", "BranchPass123!"))))
+                .andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/auth/login").session(fresh).header("X-CSRF-Token", freshCsrf).contentType("application/json")
+                .content(om.writeValueAsString(p("username", name, "password", password)))).andExpect(status().isOk());
+        // 登录端同样不做 trim：仅一侧有空格的写法失败（CSRF 缺失时先被拒绝 403，不触达登录逻辑）
+        mvc.perform(post("/api/auth/login").header("X-CSRF-Token", "csrf-fresh")
+                .contentType("application/json")
+                .content(om.writeValueAsString(p("username", name, "password", " BranchPass123!")))).andExpect(status().isForbidden());
+        var again = freshSession();
+        mvc.perform(post("/api/auth/login").session(again)
+                .header("X-CSRF-Token", (String) again.getAttribute("csrf")).contentType("application/json")
+                .content(om.writeValueAsString(p("username", name, "password", " BranchPass123!")))).andExpect(status().isUnauthorized());
+        // 过短（7 个字符）、超过 72 字节、全空白的密码在注册时明确拒绝（不注册、不改写）；
+        // “  abc123  ”按原文计 10 个字符（若被 trim 则不足 8 位），应被接受且能用原样登录（见下方往返登录）
+        String shortName = "sp" + id().replace("-", "").substring(0, 9);
+        String longPassword = "密".repeat(25); // 75 字节，25 个字符
+        for (String bad : List.of("Abc1234", longPassword, "        ")) {
+            var reg = freshSession();
+            mvc.perform(post("/api/auth/register").session(reg).header("X-CSRF-Token", (String) reg.getAttribute("csrf"))
+                    .contentType("application/json")
+                    .content(om.writeValueAsString(p("username", shortName, "password", bad, "nickname", "不合规密码"))))
+                    .andExpect(status().isBadRequest()).andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("密码")));
+        }
+        assertEquals(0, db.list("select id from accounts where username=#{p.u}", p("u", shortName)).size(), "被拒绝的注册不建账户");
+        String paddedName = "pad" + id().replace("-", "").substring(0, 8);
+        var pad = freshSession();
+        mvc.perform(post("/api/auth/register").session(pad).header("X-CSRF-Token", (String) pad.getAttribute("csrf"))
+                .contentType("application/json")
+                .content(om.writeValueAsString(p("username", paddedName, "password", "  abc123  ", "nickname", "两端空格"))))
+                .andExpect(status().isOk());
+        var padLogin = freshSession();
+        String padCsrf = (String) padLogin.getAttribute("csrf");
+        mvc.perform(post("/api/auth/login").session(padLogin).header("X-CSRF-Token", padCsrf).contentType("application/json")
+                .content(om.writeValueAsString(p("username", paddedName, "password", "abc123")))).andExpect(status().isUnauthorized());
+        mvc.perform(post("/api/auth/login").header("X-CSRF-Token", "not-a-session-token")
+                .contentType("application/json")
+                .content(om.writeValueAsString(p("username", paddedName, "password", "  abc123  ")))).andExpect(status().isForbidden());
+        mvc.perform(post("/api/auth/login").session(padLogin).header("X-CSRF-Token", padCsrf).contentType("application/json")
+                .content(om.writeValueAsString(p("username", paddedName, "password", "  abc123  ")))).andExpect(status().isOk());
+        // 非字符串密码明确拒绝
+        assertThrows(ApiError.class, () -> service.register(p("username", shortName, "password", 12345678, "nickname", "x")));
+        // 恰好 72 字节（24 个中文字符）可注册并可用原样登录
+        String edge = "密".repeat(24);
+        assertEquals(72, edge.getBytes(java.nio.charset.StandardCharsets.UTF_8).length);
+        String edgeName = "edge" + id().replace("-", "").substring(0, 8);
+        service.register(p("username", edgeName, "password", edge, "nickname", "边界"));
+        var edgeSession = freshSession();
+        mvc.perform(post("/api/auth/login").session(edgeSession).header("X-CSRF-Token", (String) edgeSession.getAttribute("csrf"))
+                .contentType("application/json")
+                .content(om.writeValueAsString(p("username", edgeName, "password", edge)))).andExpect(status().isOk());
+    }
+
+    /**
+     * #15 物品咨询双方统一可用性：下单后原咨询对双方都只读，双方发送都被拒绝且消息条数不增加；
+     * 有效订单的专用会话仍可正常沟通；未发起咨询的第三人不能进入，未经咨询卖方不能新开会话。
+     */
+    @Test
+    @Order(33)
+    void itemInquiryBecomesReadOnlyForBothPartiesAfterOrder() throws Exception {
+        var i = onSale();
+        String iid = s(i, "id");
+        // 买方首次咨询：前端默认 peer 为空字符串，咨询人由认证 uid 确定
+        mvc.perform(post("/api/messages").param("type", "ITEM").param("object", iid).param("peer", "")
+                .session(session("buyer")).header("X-CSRF-Token", "csrf-buyer").contentType("application/json")
+                .content("{\"content\":\"还在吗？\"}")).andExpect(status().isOk());
+        // 再次发送：空 peer 下仍写入“本人↔卖方”这一条会话
+        mvc.perform(post("/api/messages").param("type", "ITEM").param("object", iid).session(session("buyer"))
+                .header("X-CSRF-Token", "csrf-buyer").contentType("application/json").content("{\"content\":\"可以今天取吗\"}"))
+                .andExpect(status().isOk());
+        // 读取上下文（空 peer）：可写，且消息只属于本人与卖方
+        var buyerCtx = om.readTree(mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid)
+                .param("peer", "").session(session("buyer"))).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString());
+        assertEquals(false, buyerCtx.get("readOnly").asBoolean(), "在售期间咨询可写");
+        assertEquals(2, buyerCtx.get("messages").size(), "买方首次/再次发送都落在本会话");
+        // 另一个买方同样用空 peer 首次咨询：形成独立会话，读不到买方的消息
+        mvc.perform(post("/api/messages").param("type", "ITEM").param("object", iid).session(session("buyer2"))
+                .header("X-CSRF-Token", "csrf-buyer2").contentType("application/json").content("{\"content\":\"买方乙的咨询\"}"))
+                .andExpect(status().isOk());
+        var buyer2Ctx = om.readTree(mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid)
+                .session(session("buyer2"))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertEquals(1, buyer2Ctx.get("messages").size(), "买方乙只能读到自己的咨询");
+        assertEquals("买方乙的咨询", buyer2Ctx.get("messages").get(0).get("content").asText());
+        // 非空他人 peer 明确拒绝，不能借参数读他人会话
+        mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid).param("peer", buyer())
+                .session(session("buyer2"))).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/messages").param("type", "ITEM").param("object", iid).param("peer", buyer())
+                .session(session("buyer2")).header("X-CSRF-Token", "csrf-buyer2").contentType("application/json")
+                .content("{\"content\":\"借参数发到他人会话\"}")).andExpect(status().isBadRequest());
+        // 卖方回复：必须提交真实咨询人的 peer，回复写入该咨询人的会话
+        mvc.perform(post("/api/messages").param("type", "ITEM").param("object", iid).param("peer", buyer())
+                .session(session("seller")).header("X-CSRF-Token", "csrf-seller").contentType("application/json")
+                .content("{\"content\":\"在的\"}")).andExpect(status().isOk());
+        var sellerReply = om.readTree(mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid)
+                .param("peer", buyer()).session(session("buyer"))).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString());
+        assertEquals(3, sellerReply.get("messages").size(), "卖方回复进入买方会话");
+        assertEquals(buyer(), sellerReply.get("messages").get(2).get("receiver_id").asText());
+        // 卖方空 peer 明确拒绝（不能凭空建立会话）
+        mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid).param("peer", "")
+                .session(session("seller"))).andExpect(status().isBadRequest());
+        var buyer2After = om.readTree(mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid)
+                .session(session("buyer2"))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertEquals(1, buyer2After.get("messages").size(), "卖方回复不串入买方乙的会话");
+        int before = db.list("select id from messages where context_type='ITEM' and context_id=#{p.i}", p("i", iid)).size();
+        assertEquals(4, before);
+
+        var o = order(i);
+        String oid = s(o, "id");
+        // 下单后双方读取原咨询：都只读、历史可读（买方空 peer，卖方给真实咨询人）
+        var buyerItem = mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid)
+                .session(session("buyer"))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString();
+        assertTrue(om.readTree(buyerItem).get("readOnly").asBoolean(), "买方读取原咨询应为只读");
+        assertEquals(3, om.readTree(buyerItem).get("messages").size(), "买方仍可读取本会话历史");
+        var sellerItem = om.readTree(mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid)
+                .param("peer", buyer()).session(session("seller"))).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString());
+        assertEquals(true, sellerItem.get("readOnly").asBoolean(), "卖方读取原咨询应为只读");
+        assertEquals(3, sellerItem.get("messages").size(), "卖方仍可读取历史消息");
+        // 双方发送都被拒绝
+        mvc.perform(post("/api/messages").param("type", "ITEM").param("object", iid).param("peer", buyer())
+                .session(session("seller")).header("X-CSRF-Token", "csrf-seller").contentType("application/json")
+                .content("{\"content\":\"卖方下单后发送\"}")).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/messages").param("type", "ITEM").param("object", iid).param("peer", buyer())
+                .session(session("buyer")).header("X-CSRF-Token", "csrf-buyer").contentType("application/json")
+                .content("{\"content\":\"买方下单后发送\"}")).andExpect(status().isBadRequest());
+        assertEquals(before, db.list("select id from messages where context_type='ITEM' and context_id=#{p.i}", p("i", iid)).size(),
+                "双方发送被拒绝后消息条数不增加");
+
+        // 有效订单专用会话仍可双向沟通
+        mvc.perform(post("/api/messages").param("type", "ORDER").param("object", oid).session(session("buyer"))
+                .header("X-CSRF-Token", "csrf-buyer").contentType("application/json").content("{\"content\":\"订单会话买方\"}"))
+                .andExpect(status().isOk());
+        mvc.perform(post("/api/messages").param("type", "ORDER").param("object", oid).session(session("seller"))
+                .header("X-CSRF-Token", "csrf-seller").contentType("application/json").content("{\"content\":\"订单会话卖方\"}"))
+                .andExpect(status().isOk());
+        var orderCtx = om.readTree(mvc.perform(get("/api/messages/context").param("type", "ORDER").param("object", oid)
+                .session(session("seller"))).andExpect(status().isOk()).andReturn().getResponse().getContentAsString());
+        assertEquals(false, orderCtx.get("readOnly").asBoolean());
+        assertEquals(2, orderCtx.get("messages").size());
+
+        // 参与者权限不放松：未发起过咨询的第三人（新人）不能进入、不能发送；
+        // 卖方不能凭从未咨询过的用户 id 建立会话
+        String newcomer = registered("stranger");
+        mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid).session(sessionOf(newcomer)))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post("/api/messages").param("type", "ITEM").param("object", iid).session(sessionOf(newcomer))
+                .header("X-CSRF-Token", "csrf-" + newcomer).contentType("application/json")
+                .content("{\"content\":\"新人也来插话\"}")).andExpect(status().isBadRequest());
+        mvc.perform(post("/api/messages").param("type", "ITEM").param("object", iid).param("peer", newcomer)
+                .session(session("seller")).header("X-CSRF-Token", "csrf-seller").contentType("application/json")
+                .content("{\"content\":\"卖方主动新开\"}")).andExpect(status().isBadRequest());
+        // 卖方给买方乙的 peer 能读到买方乙自己的会话（下单后只读），不会串到买方的会话
+        String buyer2 = uid("buyer2");
+        mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid).param("peer", buyer2)
+                .session(session("seller"))).andExpect(status().isOk()).andExpect(jsonPath("$.messages.length()").value(1))
+                .andExpect(jsonPath("$.readOnly").value(true));
+        // 订单专用会话第三人同样不能进入
+        mvc.perform(get("/api/messages/context").param("type", "ORDER").param("object", oid).session(session("buyer2")))
+                .andExpect(status().isForbidden());
+
+        // 订单结束后原咨询仍只读
+        act(seller(), o, "accept");
+        act(seller(), o, "deliver");
+        act(buyer(), o, "confirm");
+        mvc.perform(post("/api/messages").param("type", "ITEM").param("object", iid).param("peer", buyer())
+                .session(session("seller")).header("X-CSRF-Token", "csrf-seller").contentType("application/json")
+                .content("{\"content\":\"完成后发送\"}")).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid).param("peer", buyer())
+                .session(session("seller"))).andExpect(status().isOk()).andExpect(jsonPath("$.readOnly").value(true));
+        mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid).session(session("buyer")))
+                .andExpect(status().isOk()).andExpect(jsonPath("$.readOnly").value(true))
+                .andExpect(jsonPath("$.messages.length()").value(3));
+    }
+
+    /**
+     * #15 并发边界：卖方发送线程在锁前读取（物品仍可写）后被测试层闸门挂起，期间买方完成真实下单并提交；
+     * 放行后发送继续按统一顺序加锁，并以锁后的最新状态判定，发送被拒绝、消息条数不增加。
+     */
+    @Test
+    @Order(34)
+    void sellerInquirySendRaceWithOrderIsRejectedAtLockedRecheck() throws Exception {
+        var i = onSale();
+        String iid = s(i, "id");
+        service.message(buyer(), "ITEM", iid, "", p("content", "并发前咨询"));
+        service.message(seller(), "ITEM", iid, buyer(), p("content", "并发前卖方回复"));
+        int before = db.list("select id from messages where context_type='ITEM' and context_id=#{p.i}", p("i", iid)).size();
+        var arrived = new CountDownLatch(1);
+        var release = new CountDownLatch(1);
+        var pool = Executors.newFixedThreadPool(2);
+        TestStoreSpy.pauseAfterItemHintRead(iid, arrived, release);
+        try {
+            Future<String> job = pool.submit(() -> {
+                try {
+                    service.message(seller(), "ITEM", iid, buyer(), p("content", "并发中卖方发送"));
+                    return "";
+                } catch (ApiError e) {
+                    return e.getMessage();
+                }
+            });
+            assertTrue(arrived.await(20, TimeUnit.SECONDS), "卖方发送线程应完成锁前读取");
+            assertTrue(TestStoreSpy.itemReadPaused(iid), "确定性时序：发送线程确实在锁前读取后被测试层闸门挂起");
+            assertEquals(before, db.list("select id from messages where context_type='ITEM' and context_id=#{p.i}",
+                    p("i", iid)).size(), "挂起期间尚未写入消息");
+            // 挂起期间买方真实下单并提交（物品状态变为 交易中 并持有占用）
+            var o = order(i);
+            assertEquals("交易中", s(service.item(iid, false), "status"));
+            release.countDown();
+            String err = job.get(20, TimeUnit.SECONDS);
+            assertFalse(err.isEmpty(), "锁后重新判定应拒绝发送，实际未被拒绝");
+            assertTrue(err.contains("订单") || err.contains("不可公开咨询"), "拒绝原因应指向订单会话：" + err);
+            assertEquals(1, db.list("select id from orders where item_id=#{p.i}", p("i", iid)).size());
+            assertEquals("待卖方确认", s(o, "stage"));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        } catch (ExecutionException e) {
+            throw new IllegalStateException(e.getCause());
+        } finally {
+            release.countDown();
+            TestStoreSpy.clearPauses();
+            pool.shutdownNow();
+        }
+        assertEquals(before, db.list("select id from messages where context_type='ITEM' and context_id=#{p.i}", p("i", iid)).size(),
+                "并发下单后卖方发送被拒绝，消息条数不增加");
+        var ctx = om.readTree(mvc.perform(get("/api/messages/context").param("type", "ITEM").param("object", iid)
+                .param("peer", buyer()).session(session("seller"))).andExpect(status().isOk()).andReturn().getResponse()
+                .getContentAsString());
+        assertEquals(true, ctx.get("readOnly").asBoolean());
+    }
+
+    /**
+     * 自查：同类公开/私有读取投影与物品进入不可访问状态后的咨询边界。
+     * - 他人撤回后的物品（存量历史咨询）双方只读且不可再发送，历史按原文仍可读；
+     * - 物主「我的发布」/管理员管理台仍返回完整记录（含 reason），公开检索不返回。
+     */
+    @Test
+    @Order(35)
+    void unavailableInquiryStaysScopedAndOwnerRecordsRemainComplete() throws Exception {
+        var i = onSale();
+        String iid = s(i, "id");
+        // 撤回后的物品：原咨询双方只读、发送被拒绝、历史按原文可读（即时消息不脱敏）
+        var j = onSale();
+        String jid = s(j, "id");
+        service.message(buyer(), "ITEM", jid, "", p("content", "撤回前咨询"));
+        service.withdraw(seller(), jid);
+        assertTrue(Boolean.TRUE.equals(service.context(buyer(), "ITEM", jid, "").get("readOnly")));
+        assertTrue(Boolean.TRUE.equals(service.context(seller(), "ITEM", jid, buyer()).get("readOnly")));
+        assertEquals(1, ((List<?>) service.context(seller(), "ITEM", jid, buyer()).get("messages")).size());
+        assertEquals("撤回前咨询", s((Map<String, Object>) ((List<?>) service.context(seller(), "ITEM", jid, buyer())
+                .get("messages")).get(0), "content"), "历史消息保持原文");
+        assertThrows(ApiError.class, () -> service.message(seller(), "ITEM", jid, buyer(), p("content", "撤回后发送")));
+        assertThrows(ApiError.class, () -> service.message(buyer(), "ITEM", jid, "", p("content", "撤回后发送")));
+
+        // 物主与管理台的完整记录仍含审核说明（权限各自保留）
+        String reason = reasonOf(iid, db);
+        assertNotNull(reason);
+        var mine = service.mine(seller()).stream().filter(r -> iid.equals(s(r, "id"))).findFirst().orElseThrow();
+        assertEquals(reason, s(mine, "reason"));
+        var dash = service.dashboard(admin());
+        var dashRow = ((List<Map<String, Object>>) dash.get("items")).stream().filter(r -> iid.equals(s(r, "id")))
+                .findFirst().orElseThrow();
+        assertEquals(reason, s(dashRow, "reason"));
+        assertThrows(ApiError.class, () -> service.dashboard(buyer()));
     }
 
     @Test
